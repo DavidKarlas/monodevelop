@@ -158,7 +158,7 @@ namespace MonoDevelop.CodeIssues
 			categories.Clear ();
 			treeStore.Clear ();
 			var grouped = severities.Keys
-				.Where (node => node.Item2 == null && (string.IsNullOrEmpty (filter) || node.Item1.Name.IndexOf (filter, StringComparison.OrdinalIgnoreCase) > 0))
+				.Where (node => node.Item2 == null && (string.IsNullOrEmpty (filter) || node.Item1.Name.ToString().IndexOf (filter, StringComparison.OrdinalIgnoreCase) > 0))
 				.GroupBy (node => node.Item1.GetProvider ().SupportedDiagnostics.First ().Category)
 				.OrderBy (g => g.Key, StringComparer.Ordinal);
 
@@ -172,7 +172,7 @@ namespace MonoDevelop.CodeIssues
 					var nodeIter = treeStore.AppendValues (categoryIter, title, node, node.Item1.Name);
 					if (node.Item1.GetProvider ().SupportedDiagnostics.Length > 1) {
 						foreach (var subIssue in node.Item1.GetProvider ().SupportedDiagnostics) {
-							title = subIssue.Description;
+							title = subIssue.Description.ToString ();
 							MarkupSearchResult (filter, ref title);
 							treeStore.AppendValues (nodeIter, title, new Tuple<CodeDiagnosticDescriptor, DiagnosticDescriptor> (node.Item1, subIssue), subIssue.Description);
 						}

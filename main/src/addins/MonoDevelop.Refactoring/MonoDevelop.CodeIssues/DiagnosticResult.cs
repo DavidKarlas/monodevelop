@@ -67,7 +67,7 @@ namespace MonoDevelop.CodeIssues
 
 		IssueMarker GetIssueMarker ()
 		{
-			if (diagnostic.Category == IssueCategories.RedundanciesInCode || diagnostic.Category == IssueCategories.RedundanciesInDeclarations)
+			if (diagnostic.Descriptor.Category == IssueCategories.RedundanciesInCode || diagnostic.Descriptor.Category == IssueCategories.RedundanciesInDeclarations)
 				return IssueMarker.GrayOut;
 			if (diagnostic.Severity == DiagnosticSeverity.Info)
 				return IssueMarker.DottedLine;
