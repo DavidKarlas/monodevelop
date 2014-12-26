@@ -52,6 +52,7 @@ using MonoDevelop.Ide.Editor;
 using MonoDevelop.Components;
 using MonoDevelop.Ide.Editor.Extension;
 using System.Collections.Immutable;
+using Microsoft.CodeAnalysis;
 
 namespace MonoDevelop.CodeActions
 {
@@ -178,10 +179,10 @@ namespace MonoDevelop.CodeActions
 							.Select (rm => rm.Tag)
 							.OfType<DiagnosticResult> ()
 							.Select (dr => dr.Diagnostic)
-							.ToList ();
+							.ToImmutableArray();
 					System.Threading.Tasks.Task.Factory.StartNew (async delegate {
 						var codeIssueFixes = new List<Tuple<CodeFixDescriptor, CodeAction>> ();
-						var diagnosticIds = diagnosticsAtCaret.Select (diagnostic => diagnostic.Id).ToImmutableArray<string> ();
+						var diagnosticIds = diagnosticsAtCaret.Select (diagnostic => diagnostic.Id).ToList();
 						foreach (var cfp in CodeDiagnosticService.GetCodeFixDescriptor (CodeRefactoringService.MimeTypeToLanguage(Editor.MimeType))) {
 							if (token.IsCancellationRequested)
 								return;
