@@ -119,7 +119,7 @@ namespace MonoDevelop.Ide.TypeSystem
 				workspacesLoading++;
 				if (statusIcon != null)
 					return;
-				statusIcon = IdeApp.Workbench?.StatusBar.ShowStatusIcon (ImageService.GetIcon ("md-parser"));
+				statusIcon = IdeApp.Workbench?.StatusBar?.ShowStatusIcon (ImageService.GetIcon ("md-parser"));
 			});
 		}
 

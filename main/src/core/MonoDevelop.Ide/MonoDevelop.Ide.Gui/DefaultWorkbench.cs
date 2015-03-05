@@ -101,7 +101,7 @@ namespace MonoDevelop.Ide.Gui
 		
 		public MonoDevelop.Ide.StatusBar StatusBar {
 			get {
-				return toolbar.StatusBar;
+				return toolbar?.StatusBar;
 			}
 		}
 
