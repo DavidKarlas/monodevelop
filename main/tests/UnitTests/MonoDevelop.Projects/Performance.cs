@@ -36,6 +36,11 @@ using MonoDevelop.Ide.Gui;
 using MonoDevelop.CSharp.Completion;
 using MonoDevelop.Refactoring;
 using Microsoft.CodeAnalysis;
+using ICSharpCode.NRefactory6.CSharp;
+using System.Collections.Generic;
+using Microsoft.CodeAnalysis.Diagnostics;
+using System.Collections.Immutable;
+using System.Diagnostics;
 
 namespace MonoDevelop.Projects
 {
@@ -44,8 +49,8 @@ namespace MonoDevelop.Projects
 		[Test]
 		public void BuildConsoleProject ()
 		{
-			var s = System.Diagnostics.Stopwatch.StartNew ();
-			string solFile = @"K:\GIT\MD1\monodevelop\main\Main.sln";
+			var s = Stopwatch.StartNew ();
+			string solFile = Path.Combine ("..", "..", "Main.sln");
 
 			Console.WriteLine ("Start:" + s.Elapsed.TotalSeconds);
 			WorkspaceItem item = Services.ProjectService.ReadWorkspaceItem (Util.GetMonitor (), solFile);
@@ -56,91 +61,45 @@ namespace MonoDevelop.Projects
 				TypeSystemService.Load (solution, monitor, false);
 
 			Console.WriteLine ("Roslyn loaded:" + s.Elapsed.TotalSeconds);
-
-			TypeSystemService.GetCompilationAsync ((Project)solution.Items [0]).Wait ();
+			var compilations = new List<Compilation> ();
+			foreach (var p in solution.Items.OfType<DotNetProject>()) {
+				compilations.Add (TypeSystemService.GetCompilationAsync (p).Result);
+			}
 			Console.WriteLine ("Compilation done:" + s.Elapsed.TotalSeconds);
 
-			var tww = new TestWorkbenchWindow ();
-			var content = new TestViewContent ();
-			var fileName = @"K:\GIT\MD1\monodevelop\main\tests\UnitTests\MonoDevelop.Projects\Performance.cs";
-			var text = File.ReadAllText (fileName);
-			int endPos = text.IndexOf ("TestBase");
+			var types = AppDomain.CurrentDomain.GetAssemblies ()
+				.Where (a => !a.IsDynamic)
+				.SelectMany (a => a.GetExportedTypes ())
+				.Where (t => typeof(DiagnosticAnalyzer).IsAssignableFrom (t))
+				.Where (t => !t.IsInterface
+			            && !t.IsAbstract
+			            && !t.ContainsGenericParameters)
+				.Select (t => (DiagnosticAnalyzer)Activator.CreateInstance (t))
+				.ToImmutableArray ();
 
-			MonoDevelopWorkspace.CreateTextLoader = delegate (string fn) {
-				return MonoDevelopTextLoader.CreateFromText (text);
-			};
+			Console.WriteLine ("Reflection done:" + s.Elapsed.TotalSeconds);
 
-			var project = solution.GetAllProjects ().FirstOrDefault ((p) => p.Name == "UnitTests");
+			foreach (var c in compilations) {
+				//Remove if to run longer test
+				if (c.AssemblyName == "MonoDevelop.Ide") {
+					var sw = Stopwatch.StartNew ();
+					var count = c.WithAnalyzers (types).GetAllDiagnosticsAsync ().Result.Length;
+					sw.Stop ();
+					Console.WriteLine (c.Assembly.Name + "(" + count + ") took:" + sw.Elapsed.TotalSeconds);
+				}
+			}
 
-			content.Project = project;
+			Console.WriteLine ("Diagnostics done:" + s.Elapsed.TotalSeconds);
 
-			tww.ViewContent = content;
-			content.ContentName = fileName;
-			content.Data.MimeType = "text/x-csharp";
-			var doc = new MonoDevelop.Ide.Gui.Document (tww);
-			doc.SetProject (project);
-
-			content.Text = text;
-			content.CursorPosition = Math.Max (0, endPos);
-
-			doc.UpdateParseDocument ();
-
-			Console.WriteLine ("Loaded file:" + s.Elapsed.TotalSeconds);
-
-			var info = CurrentRefactoryOperationsHandler.GetSymbolInfoAsync (doc, doc.Editor.CaretOffset).Result;
-			var semanticModel = doc.ParsedDocument.GetAst<Microsoft.CodeAnalysis.SemanticModel> ();
-			var sym = info.Symbol ?? info.DeclaredSymbol;
-			var haha = sym.DeclaringSyntaxReferences;
-			var workspace = TypeSystemService.GetWorkspace (solution);
-			var references = Microsoft.CodeAnalysis.FindSymbols.SymbolFinder.FindReferencesAsync (sym, workspace.CurrentSolution).Result.ToArray ();
-
-
-//			{
-//				var linkedSymbols = new System.Collections.Generic.HashSet<Microsoft.CodeAnalysis.ISymbol> ();
-//
-//				foreach (var location in sym.DeclaringSyntaxReferences) {
-//					var originalDocument = workspace.CurrentSolution.GetDocument(location.SyntaxTree);
-//
-//					foreach (var linkedDocumentId in originalDocument.GetLinkedDocumentIds())
-//					{
-//						var linkedDocument = workspace.GetDocument(linkedDocumentId);
-//						var linkedSyntaxRoot = linkedDocument.GetSyntaxRootAsync ().Result;
-//
-//						// Defend against constructed solutions with inconsistent linked documents
-//						if (!linkedSyntaxRoot.FullSpan.Contains(location.Span))
-//						{
-//							continue;
-//						}
-//
-//						var linkedNode = linkedSyntaxRoot.FindNode(location.Span, getInnermostNodeForTie: true);
-//
-//						var semanticModel2 = linkedDocument.GetSemanticModelAsync ().Result;
-//						var linkedSymbol = semanticModel2.GetDeclaredSymbol (linkedNode);
-//
-//						if (linkedSymbol != null &&
-//						    linkedSymbol.Kind == sym.Kind &&
-//						    linkedSymbol.Name == sym.Name &&
-//						!linkedSymbols.Contains(linkedSymbol))
-//						{
-//							linkedSymbols.Add(linkedSymbol);
-//						}
-//					}
-//				}
-//
-//			}
-
-
-
-
-
-			//			CSharp.Refactoring.ResolveCommandHandler.GetPossibleNamespaces (doc.Editor, doc, doc.Editor.SelectionRange);
-
-			Console.WriteLine ("Find all references(" + references.Length + "):" + s.Elapsed.TotalSeconds);
-
-
+//			var project = solution.GetAllProjects ().FirstOrDefault ((p) => p.Name == "UnitTests");
+//			var sym = TypeSystemService.GetCompilationAsync (project).Result.GetTypeByMetadataName ("UnitTests.TestBase");
+//			Console.WriteLine ("Find symbol:" + s.Elapsed.TotalSeconds);
+//			var haha = sym.DeclaringSyntaxReferences;
+//			var workspace = TypeSystemService.GetWorkspace (solution);
+//			var references = ((INamedTypeSymbol)sym).FindDerivedClassesAsync (workspace.CurrentSolution).Result.ToArray ();
+//			Console.WriteLine ("Find all references(" + references.Length + "):" + s.Elapsed.TotalSeconds);
 
 			TypeSystemService.Unload (solution);
-
 
 			s.Stop ();
 			Console.WriteLine ("Finished:" + s.Elapsed.TotalSeconds);
