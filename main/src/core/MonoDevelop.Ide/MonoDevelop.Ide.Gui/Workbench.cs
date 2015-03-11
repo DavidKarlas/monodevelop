@@ -251,7 +251,7 @@ namespace MonoDevelop.Ide.Gui
 		
 		public StatusBar StatusBar {
 			get {
-				return workbench.StatusBar.MainContext;
+				return workbench.StatusBar?.MainContext;
 			}
 		}
 
