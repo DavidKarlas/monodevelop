@@ -86,11 +86,12 @@ namespace MonoDevelop.CSharp.Parser
 			static DocumentRegion GetRegion (SyntaxTrivia trivia)
 			{
 				var fullSpan = trivia.FullSpan;
-				var text = trivia.SyntaxTree.GetText ().ToString (new Microsoft.CodeAnalysis.Text.TextSpan (fullSpan.End - 2, 2));
-				if (text == "\r\n")
-					fullSpan = new Microsoft.CodeAnalysis.Text.TextSpan (fullSpan.Start, fullSpan.Length - 2);
-				else if (text [1] == '\n' || text [1] == '\r') {
-					fullSpan = new Microsoft.CodeAnalysis.Text.TextSpan (fullSpan.Start, fullSpan.Length - 1);
+				var text = trivia.ToString ();
+				if (text.Length > 2) {
+					if (text [text.Length - 2] == '\r' && text [text.Length - 1] == '\n')
+						fullSpan = new Microsoft.CodeAnalysis.Text.TextSpan (fullSpan.Start, fullSpan.Length - 2);
+					else if (ICSharpCode.NRefactory6.NewLine.IsNewLine (text [text.Length - 1]))
+						fullSpan = new Microsoft.CodeAnalysis.Text.TextSpan (fullSpan.Start, fullSpan.Length - 1);
 				}
 				var lineSpan = trivia.SyntaxTree.GetLineSpan (fullSpan);
 				return (DocumentRegion)lineSpan;
