@@ -2438,6 +2438,24 @@ namespace MonoDevelop.SourceEditor
 			}
 		}
 
+		event EventHandler ITextEditorImpl.VAdjustmentChanged {
+			add {
+				TextEditor.VAdjustment.ValueChanged += value;
+			}
+			remove {
+				TextEditor.VAdjustment.ValueChanged -= value;
+			}
+		}
+
+		event EventHandler ITextEditorImpl.HAdjustmentChanged {
+			add {
+				TextEditor.HAdjustment.ValueChanged += value;
+			}
+			remove {
+				TextEditor.HAdjustment.ValueChanged -= value;
+			}
+		}
+
 		public event EventHandler CaretPositionChanged;
 		bool hasCaretPositionChanged;
 		protected virtual void OnCaretPositionChanged (EventArgs e)

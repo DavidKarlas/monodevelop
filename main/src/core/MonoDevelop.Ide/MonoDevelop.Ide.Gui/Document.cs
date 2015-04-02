@@ -805,6 +805,11 @@ namespace MonoDevelop.Ide.Gui
 				analysisDocument = TypeSystemService.GetDocumentId (this.Project, this.FileName);
 				if (analysisDocument != null) {
 					TypeSystemService.InformDocumentOpen (analysisDocument, Editor);
+				} else {
+					using (var monitor = new MonoDevelop.Core.ProgressMonitoring.NullProgressMonitor ())
+						TypeSystemService.Load (Project.ParentSolution, monitor, false);
+					analysisDocument = TypeSystemService.GetDocumentId (this.Project, Platform.IsWindows ? "C:\\a.cs" : "/a.cs");
+					TypeSystemService.InformDocumentOpen (analysisDocument, Editor);
 				}
 			} else {
 				lock (adhocProjectLock) {
