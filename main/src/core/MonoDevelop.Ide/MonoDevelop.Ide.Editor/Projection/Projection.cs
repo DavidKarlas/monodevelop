@@ -46,6 +46,18 @@ namespace MonoDevelop.Ide.Editor.Projection
 			}
 		}
 
+		string latestText = null;
+
+		public void Update (string text, ImmutableList<ProjectedSegment> projectedSegments)
+		{
+			if (projectedEditor != null) {
+				projectedEditor.Text = text;
+			} else {
+				latestText = text;
+			}
+			ProjectedSegments = projectedSegments;
+		}
+
 		ProjectedDocumentContext projectedDocumentContext;
 
 		internal DocumentContext ProjectedContext {
@@ -60,6 +72,9 @@ namespace MonoDevelop.Ide.Editor.Projection
 				projectedEditor = TextEditorFactory.CreateNewEditor (Document);
 				projectedDocumentContext = new ProjectedDocumentContext (projectedEditor, originalContext);
 				projectedEditor.InitializeExtensionChain (projectedDocumentContext);
+				if (latestText != null) {
+					projectedEditor.Text = latestText;
+				}
 			}
 			return projectedEditor;
 		}

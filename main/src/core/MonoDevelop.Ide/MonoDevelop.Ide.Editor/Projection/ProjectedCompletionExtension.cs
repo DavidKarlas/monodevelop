@@ -42,6 +42,11 @@ namespace MonoDevelop.Ide.Editor.Projection
 				throw new ArgumentNullException ("projections");
 			this.projections = projections;
 		}
+
+		public void UpdateProjections (IReadOnlyList<Projection> projections)
+		{
+			this.projections = projections;
+		}
 		
 
 		public override bool IsValidInContext (DocumentContext context)
@@ -185,10 +190,10 @@ namespace MonoDevelop.Ide.Editor.Projection
 
 			int ICompletionWidget.CaretOffset {
 				get {
-					return ConvertOffset (completionWidget.CaretOffset);
+					return ProjectOffset (completionWidget.CaretOffset);
 				}
 				set {
-					completionWidget.CaretOffset = ProjectOffset (value);
+					completionWidget.CaretOffset = ConvertOffset (value);
 				}
 			}
 

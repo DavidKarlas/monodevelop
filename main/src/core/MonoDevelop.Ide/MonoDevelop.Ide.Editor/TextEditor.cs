@@ -1182,20 +1182,27 @@ namespace MonoDevelop.Ide.Editor
 			if (projections.Count == 0)
 				return;
 			TextEditorExtension lastExtension = textEditorImpl.EditorExtension;
-			while (lastExtension != null && lastExtension.Next != null)
+			ProjectedCompletionExtension existingProjectedCompletionExtension = null;
+			while (lastExtension != null && lastExtension.Next != null) {
+				if (lastExtension is ProjectedCompletionExtension) {
+					existingProjectedCompletionExtension = (ProjectedCompletionExtension)lastExtension;
+				}
 				lastExtension = lastExtension.Next;
-
+			}
 			// no extensions -> no projections needed
 			if (textEditorImpl.EditorExtension == null)
 				return;
 
 			if ((disabledFeatures & DisabledProjectionFeatures.Completion) != DisabledProjectionFeatures.Completion) {
-				
-				var projectedCompletionExtension = new ProjectedCompletionExtension (projections);
-				projectedCompletionExtension.Next = textEditorImpl.EditorExtension;
+				if (existingProjectedCompletionExtension != null) {
+					existingProjectedCompletionExtension.UpdateProjections (projections);
+				} else {
+					var projectedCompletionExtension = new ProjectedCompletionExtension (projections);
+					projectedCompletionExtension.Next = textEditorImpl.EditorExtension;
 
-				textEditorImpl.EditorExtension = projectedCompletionExtension;
-				projectedCompletionExtension.Initialize (this, DocumentContext);
+					textEditorImpl.EditorExtension = projectedCompletionExtension;
+					projectedCompletionExtension.Initialize (this, DocumentContext);
+				}
 			}
 		}
 	}

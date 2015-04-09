@@ -55,7 +55,7 @@ namespace MonoDevelop.Ide.Editor.Projection
 
 		public bool ContainsOriginal (int offset)
 		{
-			return Offset <= offset && offset < Offset + Length;
+			return Offset <= offset && offset <= Offset + Length;
 		}
 
 		public bool ContainsProjected (int offset)
@@ -68,7 +68,7 @@ namespace MonoDevelop.Ide.Editor.Projection
 			if (segment == null)
 				throw new ArgumentNullException ("segment");
 
-			return segment.Contains(Offset) && segment.Contains (Offset + Length); 
+			return Offset <= segment.Offset && Offset + Length >= segment.EndOffset;
 		}
 
 		public ISegment FromOriginalToProjected (ISegment segment)

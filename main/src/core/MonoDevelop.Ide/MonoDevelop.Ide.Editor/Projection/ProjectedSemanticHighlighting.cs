@@ -27,6 +27,7 @@ using System;
 using System.Linq;
 using MonoDevelop.Ide.Editor.Highlighting;
 using System.Collections.Generic;
+using MonoDevelop.Core.Text;
 
 namespace MonoDevelop.Ide.Editor.Projection
 {
@@ -69,7 +70,7 @@ namespace MonoDevelop.Ide.Editor.Projection
 			NotifySemanticHighlightingUpdate ();
 		}
 
-		public override IEnumerable<ColoredSegment> GetColoredSegments (MonoDevelop.Core.Text.ISegment segment)
+		public override IEnumerable<ColoredSegment> GetColoredSegments (ISegment segment)
 		{
 			foreach (Projection p in projections) {
 				foreach (var seg in p.ProjectedSegments) {
@@ -82,12 +83,15 @@ namespace MonoDevelop.Ide.Editor.Projection
 						if (delta < 0) {
 							len += delta;
 						}
-						foreach (var cs in p.ProjectedEditor.SemanticHighlighting.GetColoredSegments (new MonoDevelop.Core.Text.TextSegment (seg.ProjectedOffset, len))) {
+						foreach (var cs in p.ProjectedEditor.SemanticHighlighting.GetColoredSegments (new TextSegment (seg.ProjectedOffset, len))) {
 							yield return new ColoredSegment (cs.Offset - seg.ProjectedOffset + seg.Offset, cs.Length, cs.ColorStyleKey);
 
 						}
-						foreach (var cs in GetColoredSegments (MonoDevelop.Core.Text.TextSegment.FromBounds (seg.Offset + len, segment.EndOffset)))
-							yield return cs;
+						var s = TextSegment.FromBounds (seg.Offset + len, segment.EndOffset);
+						if (s.Length > 0) {
+							foreach (var cs in GetColoredSegments (s))
+								yield return cs;
+						}
 						yield break;
 					}
 				}
