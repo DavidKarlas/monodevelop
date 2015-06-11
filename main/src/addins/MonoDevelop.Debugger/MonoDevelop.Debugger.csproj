@@ -245,6 +245,12 @@
     <EmbeddedResource Include="icons\pad-threads-16%402x.png">
       <LogicalName>pad-threads-16@2x.png</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="icons\pad-tasks-16.png">
+      <LogicalName>pad-tasks-16.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="icons\pad-tasks-16%402x.png">
+      <LogicalName>pad-tasks-16@2x.png</LogicalName>
+    </EmbeddedResource>
     <EmbeddedResource Include="icons\pad-watch-16.png">
       <LogicalName>pad-watch-16.png</LogicalName>
     </EmbeddedResource>
