@@ -112,7 +112,7 @@ namespace MonoDevelop.Debugger
 
         void Update()
         {
-            throw new NotImplementedException();
+           // throw new NotImplementedException();
         }
 
 
@@ -133,7 +133,8 @@ namespace MonoDevelop.Debugger
 
         public void Initialize(IPadWindow window)
         {
-            throw new NotImplementedException();
+
+            this.window = window;
         }
 
         public void RedrawContent()
