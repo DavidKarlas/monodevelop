@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -133,6 +133,7 @@
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="MonoDevelop.Debugger\StackTracePad.cs" />
     <Compile Include="MonoDevelop.Debugger\ObjectValueTreeView.cs" />
+    <Compile Include="MonoDevelop.Debugger\TasksPad.cs" />
     <Compile Include="MonoDevelop.Debugger\WatchPad.cs" />
     <Compile Include="MonoDevelop.Debugger\Initializer.cs" />
     <Compile Include="MonoDevelop.Debugger\DisassemblyView.cs" />
@@ -191,6 +192,7 @@
   <ItemGroup>
     <EmbeddedResource Include="MonoDevelop.Debugger.addin.xml">
       <LogicalName>MonoDevelop.Debugger.addin.xml</LogicalName>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="gtk-gui\gui.stetic">
       <LogicalName>gui.stetic</LogicalName>
