@@ -40,6 +40,7 @@ namespace MonoDevelop.Debugger
         TreeStore store;
         bool needsUpdate;
         IPadWindow window;
+        TreeViewState treeViewState;
 
         enum Columns
         {
@@ -47,7 +48,9 @@ namespace MonoDevelop.Debugger
             Id,
             Status,
             ThreadAssignment,
-            Parent
+            Parent,
+            Object,
+            Weight
         }
 
         public TasksPad()
@@ -60,12 +63,41 @@ namespace MonoDevelop.Debugger
             tree.HeadersVisible = true;
 
             TreeViewColumn col = new TreeViewColumn();
+            CellRenderer crp = new CellRendererImage();
+            col.PackStart(crp, false);
+            col.AddAttribute(crp, "stock_id", (int)Columns.Icon);
+            tree.AppendColumn(col);
+
+
             col = new TreeViewColumn();
             col.Title = GettextCatalog.GetString("Id");
+            col.PackStart(tree.TextRenderer, false);
+            col.AddAttribute(tree.TextRenderer, "text", (int)Columns.Id);
+            col.AddAttribute(tree.TextRenderer, "weight", (int)Columns.Weight);
+            col.Resizable = true;
+            col.Alignment = 0.0f;
+            tree.AppendColumn(col);
+
+            col = new TreeViewColumn();
+            col.Title = GettextCatalog.GetString("ThreadAssignment");
             col.Resizable = true;
             col.PackStart(tree.TextRenderer, false);
+            col.AddAttribute(tree.TextRenderer, "text", (int)Columns.ThreadAssignment);
+            col.AddAttribute(tree.TextRenderer, "weight", (int)Columns.Weight);
+            tree.AppendColumn(col);
 
-            //TODO: Visual settings
+            col = new TreeViewColumn();
+            col.Title = GettextCatalog.GetString("Parent");
+            col.Resizable = true;
+            col.PackStart(tree.TextRenderer, false);
+            col.AddAttribute(tree.TextRenderer, "text", (int)Columns.Parent);
+            col.AddAttribute(tree.TextRenderer, "weight", (int)Columns.Weight);
+            tree.AppendColumn(col);
+
+            Add(tree);
+            ShowAll();
+
+            UpdateDisplay();
 
 
             DebuggingService.CallStackChanged += OnStackChanged;
@@ -112,7 +144,27 @@ namespace MonoDevelop.Debugger
 
         void Update()
         {
-           // throw new NotImplementedException();
+            if (tree.IsRealized)
+                tree.ScrollToPoint(0, 0);
+            treeViewState.Save();
+
+            store.Clear();
+
+            if (!DebuggingService.IsPaused)
+                return;
+
+            try
+            {
+                //TODO:show tasks here
+            }
+            catch (Exception ex)
+            {
+                LoggingService.LogInternalError(ex);
+            }
+
+            tree.ExpandAll();
+
+            treeViewState.Load();
         }
 
 
@@ -133,8 +185,11 @@ namespace MonoDevelop.Debugger
 
         public void Initialize(IPadWindow window)
         {
-
             this.window = window;
+            window.PadContentShown+= delegate {
+				if (needsUpdate)
+					Update ();
+			};
         }
 
         public void RedrawContent()
