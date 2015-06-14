@@ -31,6 +31,8 @@ using MonoDevelop.Components;
 using Mono.Debugging.Client;
 using MonoDevelop.Ide.Gui.Components;
 using MonoDevelop.Ide;
+using System.Threading.Tasks;
+using System.Reflection;
 
 namespace MonoDevelop.Debugger
 {
@@ -57,10 +59,11 @@ namespace MonoDevelop.Debugger
         {
             this.ShadowType = ShadowType.None;
 
-            store = new TreeStore(typeof(string), typeof(string), typeof(string), typeof(string), typeof(string));
+            store = new TreeStore(typeof(string), typeof(string), typeof(string), typeof(string), typeof(string),typeof(object),typeof(int));
             tree = new PadTreeView(store);
             tree.RulesHint = true;
             tree.HeadersVisible = true;
+            treeViewState = new TreeViewState(tree, (int)Columns.Object);
 
             TreeViewColumn col = new TreeViewColumn();
             CellRenderer crp = new CellRendererImage();
@@ -76,6 +79,14 @@ namespace MonoDevelop.Debugger
             col.AddAttribute(tree.TextRenderer, "weight", (int)Columns.Weight);
             col.Resizable = true;
             col.Alignment = 0.0f;
+            tree.AppendColumn(col);
+
+            col = new TreeViewColumn();
+            col.Title = GettextCatalog.GetString("Status");
+            col.Resizable = true;
+            col.PackStart(tree.TextRenderer, false);
+            col.AddAttribute(tree.TextRenderer, "text", (int)Columns.Status);
+            col.AddAttribute(tree.TextRenderer, "weight", (int)Columns.Weight);
             tree.AppendColumn(col);
 
             col = new TreeViewColumn();
@@ -98,7 +109,6 @@ namespace MonoDevelop.Debugger
             ShowAll();
 
             UpdateDisplay();
-
 
             DebuggingService.CallStackChanged += OnStackChanged;
             DebuggingService.PausedEvent += OnDebuggerPaused;
@@ -155,7 +165,29 @@ namespace MonoDevelop.Debugger
 
             try
             {
-                //TODO:show tasks here
+                
+
+                //TaskScheduler[] schedulers=TaskScheduler.GetTaskSchedulersForDebugger();
+                TaskScheduler[] schedulers = (TaskScheduler[])(typeof(TaskScheduler)).GetMethod("GetTaskSchedulersForDebugger", BindingFlags.NonPublic |BindingFlags.Static).Invoke(null, null);
+
+                
+                if (schedulers.Length == 1 && schedulers[0].GetType()==typeof(Xwt.XwtTaskScheduler))
+                {
+                    AppendTasks(TreeIter.Zero, schedulers[0]);
+                }
+                else
+                {
+                    foreach (var scheduler in schedulers)
+                    {
+                        if (scheduler.GetType!=typeof(Xwt.XwtTaskScheduler))
+                        {
+                          TreeIter iter = store.AppendValues(null, scheduler.Id.ToString(),"","",scheduler, (int)Pango.Weight.Normal);
+                          AppendTasks(iter,scheduler);
+                         }
+                    }
+                }
+               
+
             }
             catch (Exception ex)
             {
@@ -165,6 +197,29 @@ namespace MonoDevelop.Debugger
             tree.ExpandAll();
 
             treeViewState.Load();
+        }
+
+        private void AppendTasks(TreeIter iter, TaskScheduler scheduler)
+        {
+           
+             //var tasks=scheduler.GetScheduledTasksForDebugger();
+             Task[] tasks =(Task[]) typeof(TaskScheduler).GetMethod("GetScheduledTasksForDebugger",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(scheduler, null);
+
+             foreach (var task in tasks)
+             {
+                 string icon = null;
+                 string id = task.Id.ToString();
+                 int weight = (int)Pango.Weight.Normal;
+                 string status = task.Status.ToString();
+
+
+                 if (iter.Equals(TreeIter.Zero))
+                     store.AppendValues(icon, id, status, "TODO:ThreadAssignment","TODO:Parent",task, (int)weight);
+                 else
+                     store.AppendValues(iter, icon, id, status, "TODO:ThreadAssignment", "TODO:Parent", task, (int)weight);
+
+             }
+               
         }
 
 
