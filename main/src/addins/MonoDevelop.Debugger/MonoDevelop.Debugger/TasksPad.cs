@@ -107,13 +107,32 @@ namespace MonoDevelop.Debugger
 
             Add(tree);
             ShowAll();
-
             UpdateDisplay();
 
+            tree.RowActivated += tree_RowActivated;
             DebuggingService.CallStackChanged += OnStackChanged;
             DebuggingService.PausedEvent += OnDebuggerPaused;
             DebuggingService.ResumedEvent += OnDebuggerResumed;
             DebuggingService.StoppedEvent += OnDebuggerStopped;
+        }
+
+        private void tree_RowActivated(object o, RowActivatedArgs args)
+        {
+            TreeIter selected;
+
+            if (!tree.Selection.GetSelected(out selected))
+                return;
+            var task = store.GetValue(selected, (int)Columns.Object) as Task;
+            if (task!=null)
+            {
+                //TODO:change Active Task
+                UpdateTask(task);
+            }
+        }
+
+        private void UpdateTask(Task activetask)
+        {
+            throw new NotImplementedException();
         }
         public override void Dispose()
         {
@@ -152,6 +171,22 @@ namespace MonoDevelop.Debugger
                 needsUpdate = true;
         }
 
+        void TaskSchedule(TaskScheduler[] schedulers)
+        {
+            if (schedulers.Length == 1)
+            {
+                AppendTasks(TreeIter.Zero, schedulers[0]);
+            }
+            else
+            {
+                foreach (var scheduler in schedulers)
+                {
+                    TreeIter iter = store.AppendValues(null, scheduler.Id.ToString(), "", "", scheduler, (int)Pango.Weight.Normal);
+                    AppendTasks(iter, scheduler);
+
+                }
+            }
+        }
         void Update()
         {
             if (tree.IsRealized)
@@ -165,28 +200,16 @@ namespace MonoDevelop.Debugger
 
             try
             {
-                
-
-                //TaskScheduler[] schedulers=TaskScheduler.GetTaskSchedulersForDebugger();
-                TaskScheduler[] schedulers = (TaskScheduler[])(typeof(TaskScheduler)).GetMethod("GetTaskSchedulersForDebugger", BindingFlags.NonPublic |BindingFlags.Static).Invoke(null, null);
-
-                
-                if (schedulers.Length == 1 && schedulers[0].GetType()==typeof(Xwt.XwtTaskScheduler))
-                {
-                    AppendTasks(TreeIter.Zero, schedulers[0]);
+                var frame = DebuggingService.CurrentFrame;
+                var ops = GetEvaluationOptions ();
+                var val=frame.GetExpressionValue("System.Threading.Tasks.TaskScheduler.GetTaskSchedulersForDebugger()",ops);
+                if (val.IsEvaluating) 
+                  GetSchedulers(val);
+                else{
+                    TaskScheduler[] schedulers =(TaskScheduler[]) val.GetRawValue();
+                        TaskSchedule(schedulers);
                 }
-                else
-                {
-                    foreach (var scheduler in schedulers)
-                    {
-                        if (scheduler.GetType!=typeof(Xwt.XwtTaskScheduler))
-                        {
-                          TreeIter iter = store.AppendValues(null, scheduler.Id.ToString(),"","",scheduler, (int)Pango.Weight.Normal);
-                          AppendTasks(iter,scheduler);
-                         }
-                    }
-                }
-               
+            
 
             }
             catch (Exception ex)
@@ -199,11 +222,41 @@ namespace MonoDevelop.Debugger
             treeViewState.Load();
         }
 
+        private void GetSchedulers(ObjectValue val)
+        {
+
+            GLib.Timeout.Add(100, () =>
+            {
+                if (!val.IsEvaluating)
+                {
+                   var obj=val.GetRawValue();
+                   var schedulers = (TaskScheduler[])obj;
+                   TaskSchedule(schedulers);
+                    return false;
+                }
+
+               
+
+                return true;
+            });
+        }
+        static EvaluationOptions GetEvaluationOptions()
+        {
+            var ops = EvaluationOptions.DefaultOptions;
+            ops.AllowMethodEvaluation = true;
+            ops.AllowToStringCalls = true;
+            ops.AllowTargetInvoke = true;
+            ops.EvaluationTimeout = 20000;
+            ops.EllipsizeStrings = false;
+            ops.MemberEvaluationTimeout = 20000;
+            return ops;
+        }
+
         private void AppendTasks(TreeIter iter, TaskScheduler scheduler)
         {
            
              //var tasks=scheduler.GetScheduledTasksForDebugger();
-             Task[] tasks =(Task[]) typeof(TaskScheduler).GetMethod("GetScheduledTasksForDebugger",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(scheduler, null);
+              Task[] tasks =(Task[]) typeof(TaskScheduler).GetMethod("GetScheduledTasksForDebugger",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(scheduler, null);
 
              foreach (var task in tasks)
              {
@@ -212,11 +265,16 @@ namespace MonoDevelop.Debugger
                  int weight = (int)Pango.Weight.Normal;
                  string status = task.Status.ToString();
 
+                 string parent =(string) typeof(Task).GetMember("m_parent", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(0);
+                 if (parent == null)
+                     parent = "";
+
+                 string thread="TODO:ThreadAssignment";
 
                  if (iter.Equals(TreeIter.Zero))
-                     store.AppendValues(icon, id, status, "TODO:ThreadAssignment","TODO:Parent",task, (int)weight);
+                     store.AppendValues(icon, id, status, thread,parent,task, (int)weight);
                  else
-                     store.AppendValues(iter, icon, id, status, "TODO:ThreadAssignment", "TODO:Parent", task, (int)weight);
+                     store.AppendValues(iter, icon, id, status, thread, parent, task, (int)weight);
 
              }
                
