@@ -245,9 +245,12 @@ namespace MonoDevelop.Debugger
                    {
                        var raw =(RawValue) taskScheduler.GetRawValue();
                        var id = raw.GetMemberValue("Id");
-                       var schedulers =(RawValueArray) raw.CallMethod("GetScheduledTasksForDebugger");
-                       var arrayschedulers = schedulers.ToArray();
-                      
+                       var tasks =(RawValueArray) raw.CallMethod("GetScheduledTasksForDebugger");
+                       var arraytasks = tasks.ToArray();
+                       foreach (var task in arraytasks)
+                       {
+                           var rawtask = (RawValue)task;
+                       }
                        
                        
                    }
