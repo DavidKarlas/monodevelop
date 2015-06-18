@@ -206,8 +206,16 @@ namespace MonoDevelop.Debugger
                 if (val.IsEvaluating) 
                   GetSchedulers(val);
                 else{
-                    TaskScheduler[] schedulers =(TaskScheduler[]) val.GetRawValue();
-                        TaskSchedule(schedulers);
+                    var obj = (RawValueArray)val.GetRawValue();
+                   var array =  obj.ToArray();
+                   foreach (var taskScheduler in array)
+                   {
+                       var schedulers = ((RawValue)taskScheduler).CallMethod("GetScheduledTasksForDebugger");
+
+                       var tmp = (string)((RawValue)taskScheduler).GetMemberValue("Id");
+                   }
+                    //TaskScheduler[] schedulers =(TaskScheduler[]) val.GetRawValue();
+                     //   TaskSchedule(schedulers);
                 }
             
 
@@ -229,9 +237,21 @@ namespace MonoDevelop.Debugger
             {
                 if (!val.IsEvaluating)
                 {
-                   var obj=val.GetRawValue();
-                   var schedulers = (TaskScheduler[])obj;
-                   TaskSchedule(schedulers);
+                   
+                    var array=val.GetAllChildren();
+                 
+                   
+                   foreach (var taskScheduler in array)
+                   {
+                       var raw =(RawValue) taskScheduler.GetRawValue();
+                       var id = raw.GetMemberValue("Id");
+                       var schedulers =(RawValueArray) raw.CallMethod("GetScheduledTasksForDebugger");
+                       var arrayschedulers = schedulers.ToArray();
+                      
+                       
+                       
+                   }
+                   //TaskSchedule(schedulers);
                     return false;
                 }
 
@@ -247,15 +267,15 @@ namespace MonoDevelop.Debugger
             ops.AllowToStringCalls = true;
             ops.AllowTargetInvoke = true;
             ops.EvaluationTimeout = 20000;
-            ops.EllipsizeStrings = false;
+            ops.EllipsizeStrings = true;
+            ops.IEnumerable = true;
             ops.MemberEvaluationTimeout = 20000;
             return ops;
         }
 
         private void AppendTasks(TreeIter iter, TaskScheduler scheduler)
         {
-           
-             //var tasks=scheduler.GetScheduledTasksForDebugger();
+
               Task[] tasks =(Task[]) typeof(TaskScheduler).GetMethod("GetScheduledTasksForDebugger",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(scheduler, null);
 
              foreach (var task in tasks)
