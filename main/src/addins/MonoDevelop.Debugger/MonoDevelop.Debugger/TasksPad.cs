@@ -173,19 +173,7 @@ namespace MonoDevelop.Debugger
 
         void TaskSchedule(TaskScheduler[] schedulers)
         {
-            if (schedulers.Length == 1)
-            {
-                AppendTasks(TreeIter.Zero, schedulers[0]);
-            }
-            else
-            {
-                foreach (var scheduler in schedulers)
-                {
-                    TreeIter iter = store.AppendValues(null, scheduler.Id.ToString(), "", "", scheduler, (int)Pango.Weight.Normal);
-                    AppendTasks(iter, scheduler);
-
-                }
-            }
+           
         }
         void Update()
         {
@@ -204,18 +192,9 @@ namespace MonoDevelop.Debugger
                 var ops = GetEvaluationOptions ();
                 var val=frame.GetExpressionValue("System.Threading.Tasks.TaskScheduler.GetTaskSchedulersForDebugger()",ops);
                 if (val.IsEvaluating) 
-                  GetSchedulers(val);
+                  WaitSchedulers(val);
                 else{
-                    var obj = (RawValueArray)val.GetRawValue();
-                   var array =  obj.ToArray();
-                   foreach (var taskScheduler in array)
-                   {
-                       var schedulers = ((RawValue)taskScheduler).CallMethod("GetScheduledTasksForDebugger");
-
-                       var tmp = (string)((RawValue)taskScheduler).GetMemberValue("Id");
-                   }
-                    //TaskScheduler[] schedulers =(TaskScheduler[]) val.GetRawValue();
-                     //   TaskSchedule(schedulers);
+                    GetSchedulers(val);           
                 }
             
 
@@ -229,37 +208,40 @@ namespace MonoDevelop.Debugger
 
             treeViewState.Load();
         }
-
         private void GetSchedulers(ObjectValue val)
+        {
+             var array=val.GetAllChildren();    
+            
+
+             if (array.Length == 1)
+            {
+                AppendTasks(TreeIter.Zero, array[0]);
+            }
+            else
+            {
+                foreach (var scheduler in array)
+                {
+                    var raw = (RawValue)scheduler.GetRawValue();
+                    var id = raw.GetMemberValue("Id");
+                    TreeIter iter = store.AppendValues(null, id.ToString(), "", "", scheduler, (int)Pango.Weight.Normal);
+                    AppendTasks(iter, scheduler);
+
+                }
+            }                   
+                      
+        }
+
+
+        private void WaitSchedulers(ObjectValue val)
         {
 
             GLib.Timeout.Add(100, () =>
             {
                 if (!val.IsEvaluating)
                 {
-                   
-                    var array=val.GetAllChildren();
-                 
-                   
-                   foreach (var taskScheduler in array)
-                   {
-                       var raw =(RawValue) taskScheduler.GetRawValue();
-                       var id = raw.GetMemberValue("Id");
-                       var tasks =(RawValueArray) raw.CallMethod("GetScheduledTasksForDebugger");
-                       var arraytasks = tasks.ToArray();
-                       foreach (var task in arraytasks)
-                       {
-                           var rawtask = (RawValue)task;
-                       }
-                       
-                       
-                   }
-                   //TaskSchedule(schedulers);
+                   GetSchedulers(val);                         
                     return false;
                 }
-
-               
-
                 return true;
             });
         }
@@ -276,31 +258,65 @@ namespace MonoDevelop.Debugger
             return ops;
         }
 
-        private void AppendTasks(TreeIter iter, TaskScheduler scheduler)
+        private void AppendTasks(TreeIter iter, ObjectValue scheduler)
         {
+            var raw=scheduler.GetRawValue();
+            var tasks =(RawValueArray) ((RawValue)raw).CallMethod("GetScheduledTasksForDebugger");
 
-              Task[] tasks =(Task[]) typeof(TaskScheduler).GetMethod("GetScheduledTasksForDebugger",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(scheduler, null);
+            var arraytasks = tasks.ToArray();
 
-             foreach (var task in tasks)
-             {
-                 string icon = null;
-                 string id = task.Id.ToString();
-                 int weight = (int)Pango.Weight.Normal;
-                 string status = task.Status.ToString();
 
-                 string parent =(string) typeof(Task).GetMember("m_parent", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(0);
-                 if (parent == null)
-                     parent = "";
+            foreach (var task in arraytasks)
+                       {
+                           var rawtask = (RawValue)task;
+                           string icon = null;
 
-                 string thread="TODO:ThreadAssignment";
+                           var id =rawtask.GetMemberValue("Id").ToString();
+                           int weight = (int)Pango.Weight.Normal;
+                           var statusraw = rawtask.GetMemberValue("Status");
+                           long statusint = (long)statusraw;
+                           string status="";
+                                    
+                           switch (statusint)
+                           {
+                               case 7:
+                                   status = "Canceled";
+                                   break;
+                               case 0:
+                                   status = "Created";
+                                   break;
+                               case 6:
+                                   status = "Faulted";
+                                   break;
+                               case 5:
+                                   status = "RanToCompletion";
+                                   break;
+                               case 3:
+                                   status = "Running";
+                                   break;
+                               case 1:
+                                   status = "WaitingForActivation";
+                                   break;
+                               case 4:
+                                   status = "WaitingForChildrenToComplete";
+                                   break;
+                               case 2:
+                                   status = "WaitingToRun";
+                                   break;
+                           }
 
-                 if (iter.Equals(TreeIter.Zero))
-                     store.AppendValues(icon, id, status, thread,parent,task, (int)weight);
-                 else
-                     store.AppendValues(iter, icon, id, status, thread, parent, task, (int)weight);
+                           var parentraw =(RawValue) rawtask.GetMemberValue("m_parent");
+                           var parent=parentraw.GetMemberValue("Id").ToString();
+                        
 
-             }
-               
+                           string thread = "TODO:ThreadAssignment";
+
+                           if (iter.Equals(TreeIter.Zero))
+                               store.AppendValues(icon, id, status, thread, parent, task, (int)weight);
+                           else
+                               store.AppendValues(iter, icon, id, status, thread, parent, task, (int)weight);
+
+                       }     
         }
 
 
