@@ -41,6 +41,7 @@ namespace MonoDevelop.Debugger
         PadTreeView tree;
         TreeStore store;
         bool needsUpdate;
+        bool isUpdating;
         IPadWindow window;
         TreeViewState treeViewState;
 
@@ -108,6 +109,7 @@ namespace MonoDevelop.Debugger
             Add(tree);
             ShowAll();
             UpdateDisplay();
+            isUpdating = false;
 
             tree.RowActivated += tree_RowActivated;
             DebuggingService.CallStackChanged += OnStackChanged;
@@ -166,7 +168,13 @@ namespace MonoDevelop.Debugger
         public void UpdateDisplay()
         {
             if (window != null && window.ContentVisible)
-                Update();
+            {
+                if (!isUpdating)
+                {
+                    isUpdating = true;
+                    Update();
+                }
+            }
             else
                 needsUpdate = true;
         }
@@ -179,13 +187,17 @@ namespace MonoDevelop.Debugger
         {
             if (tree.IsRealized)
                 tree.ScrollToPoint(0, 0);
+            needsUpdate = false;
+
             treeViewState.Save();
 
             store.Clear();
 
             if (!DebuggingService.IsPaused)
+            {
+                isUpdating = false;
                 return;
-
+            }
             try
             {
                 var frame = DebuggingService.CurrentFrame;
@@ -202,11 +214,9 @@ namespace MonoDevelop.Debugger
             catch (Exception ex)
             {
                 LoggingService.LogInternalError(ex);
+                isUpdating = false;
             }
 
-            tree.ExpandAll();
-
-            treeViewState.Load();
         }
         private void GetSchedulers(ObjectValue val)
         {
@@ -227,8 +237,10 @@ namespace MonoDevelop.Debugger
                     AppendTasks(iter, scheduler);
 
                 }
-            }                   
-                      
+            }
+             tree.ExpandAll();
+             treeViewState.Load();
+             isUpdating = false;
         }
 
 
@@ -304,9 +316,13 @@ namespace MonoDevelop.Debugger
                                    status = "WaitingToRun";
                                    break;
                            }
-
-                           var parentraw =(RawValue) rawtask.GetMemberValue("m_parent");
-                           var parent=parentraw.GetMemberValue("Id").ToString();
+                           string parent = "";
+                           try
+                           {
+                               var parentraw = (RawValue)rawtask.GetMemberValue("m_parent");
+                               parent = parentraw.GetMemberValue("Id").ToString();
+                           }
+                           catch (Exception ex) { }
                         
 
                            string thread = "TODO:ThreadAssignment";
