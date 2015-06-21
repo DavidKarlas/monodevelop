@@ -124,17 +124,62 @@ namespace MonoDevelop.Debugger
 
             if (!tree.Selection.GetSelected(out selected))
                 return;
-            var task = store.GetValue(selected, (int)Columns.Object) as Task;
+            var task = store.GetValue(selected, (int)Columns.Object) as ObjectValue;
             if (task!=null)
             {
-                //TODO:change Active Task
-                UpdateTask(task);
+                DebuggingService.CallStackChanged -= OnStackChanged;
+                try
+                {
+                    //TODO:change Active Task
+                    //DebuggingService.ActiveThread=selectedThread
+                    UpdateTask(task);
+                }
+                finally
+                {
+                    DebuggingService.CallStackChanged += OnStackChanged;
+                }
             }
         }
 
-        private void UpdateTask(Task activetask)
+        private void UpdateTask(ObjectValue activetask)
         {
-            throw new NotImplementedException();
+            TreeIter iter;
+
+            if (!store.GetIterFirst(out iter))
+                return;
+
+            do {
+				var task = store.GetValue (iter, (int) Columns.Object) as ObjectValue;
+                if (task == null)
+                {
+                    TreeIter child;
+
+                    if (store.IterChildren(out child))
+                    {
+                        do
+                        {
+                            task = store.GetValue(iter, (int)Columns.Object) as ObjectValue;
+                            //TODO
+                            //var weight = task == activetask ? Pango.Weight.Bold : Pango.Weight.Normal;
+                            //var icon = task == activetask ? Gtk.Stock.GoForward : null;
+                            //store.SetValue(iter, (int)Columns.Weight, (int)weight);
+                            //store.SetValue(iter, (int)Columns.Icon, icon);
+                        } while (store.IterNext(ref child));
+                    }
+                }
+                else
+                {
+                    //TODO
+                    //var weight = task == activetask ? Pango.Weight.Bold : Pango.Weight.Normal;
+                    //var icon = task == activetask ? Gtk.Stock.GoForward : null;
+                    //store.SetValue(iter, (int)Columns.Weight, (int)weight);
+                    //store.SetValue(iter, (int)Columns.Icon, icon);
+                }
+
+
+            } while (store.IterNext(ref iter));
+
+            
         }
         public override void Dispose()
         {
@@ -179,10 +224,6 @@ namespace MonoDevelop.Debugger
                 needsUpdate = true;
         }
 
-        void TaskSchedule(TaskScheduler[] schedulers)
-        {
-           
-        }
         void Update()
         {
             if (tree.IsRealized)
@@ -270,52 +311,55 @@ namespace MonoDevelop.Debugger
             return ops;
         }
 
+        private string toStatus(int statusint)
+        {
+            string status = "";
+            switch (statusint)
+            {
+                case 7:
+                    status = "Canceled";
+                    break;
+                case 0:
+                    status = "Created";
+                    break;
+                case 6:
+                    status = "Faulted";
+                    break;
+                case 5:
+                    status = "RanToCompletion";
+                    break;
+                case 3:
+                    status = "Running";
+                    break;
+                case 1:
+                    status = "WaitingForActivation";
+                    break;
+                case 4:
+                    status = "WaitingForChildrenToComplete";
+                    break;
+                case 2:
+                    status = "WaitingToRun";
+                    break;
+            }
+            return status;
+        }
+
         private void AppendTasks(TreeIter iter, ObjectValue scheduler)
         {
             var raw=scheduler.GetRawValue();
             var tasks =(RawValueArray) ((RawValue)raw).CallMethod("GetScheduledTasksForDebugger");
-
             var arraytasks = tasks.ToArray();
-
-
+            var activeThreadId = DebuggingService.DebuggerSession.ActiveThread.Id.ToString();
             foreach (var task in arraytasks)
                        {
                            var rawtask = (RawValue)task;
-                           string icon = null;
-
-                           var id =rawtask.GetMemberValue("Id").ToString();
-                           int weight = (int)Pango.Weight.Normal;
+                           string thread = "TODO:ThreadAssignment";//TODO
+                           string icon = thread == activeThreadId ? Gtk.Stock.GoForward : null;
+                           int weight = (int)(thread == activeThreadId ? Pango.Weight.Bold : Pango.Weight.Normal);
+                           var id = rawtask.GetMemberValue("Id").ToString();
                            var statusraw = rawtask.GetMemberValue("Status");
                            long statusint = (long)statusraw;
-                           string status="";
-                                    
-                           switch (statusint)
-                           {
-                               case 7:
-                                   status = "Canceled";
-                                   break;
-                               case 0:
-                                   status = "Created";
-                                   break;
-                               case 6:
-                                   status = "Faulted";
-                                   break;
-                               case 5:
-                                   status = "RanToCompletion";
-                                   break;
-                               case 3:
-                                   status = "Running";
-                                   break;
-                               case 1:
-                                   status = "WaitingForActivation";
-                                   break;
-                               case 4:
-                                   status = "WaitingForChildrenToComplete";
-                                   break;
-                               case 2:
-                                   status = "WaitingToRun";
-                                   break;
-                           }
+                           string status=toStatus((int)statusint);                          
                            string parent = "";
                            try
                            {
@@ -325,7 +369,7 @@ namespace MonoDevelop.Debugger
                            catch (Exception ex) { }
                         
 
-                           string thread = "TODO:ThreadAssignment";
+                           
 
                            if (iter.Equals(TreeIter.Zero))
                                store.AppendValues(icon, id, status, thread, parent, task, (int)weight);
