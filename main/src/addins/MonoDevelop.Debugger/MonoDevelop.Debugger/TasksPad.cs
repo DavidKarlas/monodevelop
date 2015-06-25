@@ -45,7 +45,8 @@ namespace MonoDevelop.Debugger
         bool isUpdating;
         IPadWindow window;
         TreeViewState treeViewState;
-        Dictionary<string, ThreadInfo> threadAssignments; 
+        Dictionary<string, ThreadInfo> threadAssignments;
+        ThreadInfo currentThread;
 
         enum Columns
         {
@@ -112,6 +113,7 @@ namespace MonoDevelop.Debugger
             ShowAll();    
             isUpdating = false;
             threadAssignments = new Dictionary<string, ThreadInfo>();
+            currentThread = DebuggingService.ActiveThread;
             UpdateDisplay();
 
             tree.RowActivated += tree_RowActivated;
@@ -395,7 +397,7 @@ namespace MonoDevelop.Debugger
         private void taskThreads()
         {
             threadAssignments.Clear();
-            ThreadInfo activeThread = DebuggingService.DebuggerSession.ActiveThread;
+            currentThread= DebuggingService.DebuggerSession.ActiveThread;
             var processes = DebuggingService.DebuggerSession.GetProcesses();
             foreach (var process in processes)
             {              
@@ -415,7 +417,7 @@ namespace MonoDevelop.Debugger
                     }
                 }
             }
-            DebuggingService.DebuggerSession.ActiveThread = activeThread;
+            DebuggingService.DebuggerSession.ActiveThread = currentThread;
         }
         
         private void waitThreads(ObjectValue val,ThreadInfo thread)
@@ -445,8 +447,51 @@ namespace MonoDevelop.Debugger
             }
             if (id != "")
             {
-               if(!threadAssignments.ContainsKey(id))
-                threadAssignments.Add(id, thread);
+                if (!threadAssignments.ContainsKey(id))
+                {
+                    threadAssignments.Add(id, thread);
+                   //add to pad the threadid
+                    TreeIter iter;
+                    if (!store.GetIterFirst(out iter))
+                        return;
+                    do
+                    {
+                        var taskid = store.GetValue(iter, (int)Columns.Id) as string;
+                        if (taskid == "")
+                        {
+                            TreeIter child;
+
+                            if (store.IterChildren(out child))
+                            {
+                                do
+                                {
+                                    taskid = store.GetValue(iter, (int)Columns.Id) as string;
+                                    var weight = currentThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
+                                    var icon = currentThread.Id == thread.Id ? Gtk.Stock.GoForward : null;
+                                    store.SetValue(iter, (int)Columns.Weight, (int)weight);
+                                     store.SetValue(iter, (int)Columns.Icon, icon);
+                                    if (taskid==id)
+                                      store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
+                                   
+                                } while (store.IterNext(ref child));
+                            }
+                        }
+                        else
+                        {
+                            var weight = currentThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
+                            var icon = currentThread.Id == thread.Id ? Gtk.Stock.GoForward : null;
+                            if (taskid == id)
+                              store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
+                            store.SetValue(iter, (int)Columns.Weight, (int)weight);
+                            store.SetValue(iter, (int)Columns.Icon, icon);
+                        }
+
+
+                    } while (store.IterNext(ref iter));
+
+
+
+                }
             }
         }
 
