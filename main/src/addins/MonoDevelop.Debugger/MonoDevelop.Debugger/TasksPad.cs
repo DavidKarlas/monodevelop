@@ -113,7 +113,6 @@ namespace MonoDevelop.Debugger
             ShowAll();    
             isUpdating = false;
             threadAssignments = new Dictionary<string, ThreadInfo>();
-            currentThread = DebuggingService.ActiveThread;
             UpdateDisplay();
 
             tree.RowActivated += tree_RowActivated;
@@ -284,10 +283,10 @@ namespace MonoDevelop.Debugger
 
                 }
             }
+             taskThreads();
              tree.ExpandAll();
              treeViewState.Load();
-             isUpdating = false;
-             taskThreads();
+             isUpdating = false;            
         }
 
 
@@ -450,6 +449,7 @@ namespace MonoDevelop.Debugger
                 if (!threadAssignments.ContainsKey(id))
                 {
                     threadAssignments.Add(id, thread);
+                    bool hasfound = false;
                    //add to pad the threadid
                     TreeIter iter;
                     if (!store.GetIterFirst(out iter))
@@ -470,8 +470,11 @@ namespace MonoDevelop.Debugger
                                     var icon = currentThread.Id == thread.Id ? Gtk.Stock.GoForward : null;
                                     store.SetValue(iter, (int)Columns.Weight, (int)weight);
                                      store.SetValue(iter, (int)Columns.Icon, icon);
-                                    if (taskid==id)
-                                      store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
+                                     if (taskid == id)
+                                     {
+                                         store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
+                                         hasfound = true;
+                                     }
                                    
                                 } while (store.IterNext(ref child));
                             }
@@ -481,7 +484,10 @@ namespace MonoDevelop.Debugger
                             var weight = currentThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
                             var icon = currentThread.Id == thread.Id ? Gtk.Stock.GoForward : null;
                             if (taskid == id)
-                              store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
+                            {
+                                store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
+                                hasfound = false;
+                            }
                             store.SetValue(iter, (int)Columns.Weight, (int)weight);
                             store.SetValue(iter, (int)Columns.Icon, icon);
                         }
@@ -489,6 +495,37 @@ namespace MonoDevelop.Debugger
 
                     } while (store.IterNext(ref iter));
 
+                    if (!hasfound)
+                    {
+                        try
+                        {
+                            var raw = (RawValue)val.GetRawValue();
+                            var taskid = raw.GetMemberValue("Id").ToString();
+                            string icon = thread.Id == currentThread.Id ? Gtk.Stock.GoForward : null;
+                            int weight = (int)(thread.Id == currentThread.Id ? Pango.Weight.Bold : Pango.Weight.Normal);
+                            var statusraw = raw.GetMemberValue("Status");
+                            long statusint = (long)statusraw;
+                            string status = toStatus((int)statusint);
+                            string parent = "";
+                            try
+                            {
+                                var parentraw = (RawValue)raw.GetMemberValue("m_parent");
+                                parent = parentraw.GetMemberValue("Id").ToString();
+                            }
+                            catch (Exception ex)
+                            {
+                            }
+
+                            if (iter.Equals(TreeIter.Zero))
+                                store.AppendValues(icon, taskid, status, thread.Id.ToString(), parent, raw, (int)weight);
+                            else
+                                store.AppendValues(iter, icon, taskid, status, thread.Id.ToString(), parent, raw, (int)weight);
+                        }
+                        //no task on the thread
+                        catch (Exception ex)
+                        {
+                        }
+                    }
 
 
                 }
