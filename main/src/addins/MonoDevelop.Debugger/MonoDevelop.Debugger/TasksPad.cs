@@ -34,6 +34,7 @@ using MonoDevelop.Ide;
 using System.Threading.Tasks;
 using System.Reflection;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace MonoDevelop.Debugger
 {
@@ -251,7 +252,8 @@ namespace MonoDevelop.Debugger
                 if (val.IsEvaluating) 
                   WaitSchedulers(val);
                 else{
-                    GetSchedulers(val);           
+                    GetSchedulers(val);   
+        
                 }
             
 
@@ -265,10 +267,8 @@ namespace MonoDevelop.Debugger
         }
         private void GetSchedulers(ObjectValue val)
         {
-             var array=val.GetAllChildren();    
-            
-
-             if (array.Length == 1)
+            var array = val.GetAllChildren();
+            if (array.Length == 1)
             {
                 AppendTasks(TreeIter.Zero, array[0]);
             }
@@ -400,28 +400,29 @@ namespace MonoDevelop.Debugger
             var processes = DebuggingService.DebuggerSession.GetProcesses();
             foreach (var process in processes)
             {              
-                var threads = process.GetThreads();
-                DebuggingService.DebuggerSession.FetchFrames(threads);
+                var threads = process.GetThreads();             
                 foreach (var thread in threads)
                 {
-                    DebuggingService.DebuggerSession.ActiveThread = thread;
                     var frame = DebuggingService.CurrentFrame;
                     var ops = GetEvaluationOptions();
                     try
                     {
-                        var val = frame.GetExpressionValue("System.Threading.Tasks.Task.t_currentTask", ops);
-                        if (val.IsEvaluating)
-                            waitThreads(val, thread);
-                        else
+                        if (thread.Backtrace.FrameCount > 0)
                         {
-                            getThreads(val, thread);
+                                var val = thread.Backtrace.GetFrame(0).GetExpressionValue("global::System.Threading.Tasks.Task.t_currentTask", ops);
+                                if (val.IsEvaluating)
+                                    waitThreads(val, thread);
+                                else
+                                {
+                                    getThreads(val, thread);
+                                }
                         }
+                        
                     }catch(Exception ex)
                     {
                     }
                 }
             }
-            DebuggingService.DebuggerSession.ActiveThread = currentThread;
         }
         
         private void waitThreads(ObjectValue val,ThreadInfo thread)
@@ -438,8 +439,8 @@ namespace MonoDevelop.Debugger
         }
 
         private void getThreads(ObjectValue val,ThreadInfo thread)
-        {         
-            string id = "";
+        {
+            string id = ""; 
             try
             {
                 var raw = (RawValue)val.GetRawValue();
@@ -562,6 +563,54 @@ namespace MonoDevelop.Debugger
         public void RedrawContent()
         {
             UpdateDisplay();
+        }
+    }
+    static class EvalHelper
+    {
+        public static ObjectValue Sync(this ObjectValue val)
+        {
+            if (!val.IsEvaluating)
+                return val;
+
+            object locker = new object();
+            EventHandler h = delegate
+            {
+                lock (locker)
+                {
+                    Monitor.PulseAll(locker);
+                }
+            };
+
+            val.ValueChanged += h;
+
+            lock (locker)
+            {
+                while (val.IsEvaluating)
+                {
+                    if (!Monitor.Wait(locker, 4000))
+                        throw new Exception("Timeout while waiting for value evaluation");
+                }
+            }
+
+            val.ValueChanged -= h;
+            return val;
+        }
+
+        public static ObjectValue GetChildSync(this ObjectValue val, string name, EvaluationOptions ops)
+        {
+            var result = val.GetChild(name, ops);
+
+            return result != null ? result.Sync() : null;
+        }
+
+        public static ObjectValue[] GetAllChildrenSync(this ObjectValue val)
+        {
+            var children = val.GetAllChildren();
+            foreach (var child in children)
+            {
+                child.Sync();
+            }
+            return children;
         }
     }
 }
