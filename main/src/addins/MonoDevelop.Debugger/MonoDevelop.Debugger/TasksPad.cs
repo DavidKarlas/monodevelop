@@ -396,7 +396,7 @@ namespace MonoDevelop.Debugger
         private void taskThreads()
         {
             threadAssignments.Clear();
-            currentThread= DebuggingService.DebuggerSession.ActiveThread;
+            currentThread= DebuggingService.ActiveThread;
             var processes = DebuggingService.DebuggerSession.GetProcesses();
             foreach (var process in processes)
             {              
@@ -409,6 +409,7 @@ namespace MonoDevelop.Debugger
                     {
                         if (thread.Backtrace.FrameCount > 0)
                         {
+                            
                                 var val = thread.Backtrace.GetFrame(0).GetExpressionValue("global::System.Threading.Tasks.Task.t_currentTask", ops);
                                 if (val.IsEvaluating)
                                     waitThreads(val, thread);
