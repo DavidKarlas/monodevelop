@@ -47,7 +47,6 @@ namespace MonoDevelop.Debugger
         IPadWindow window;
         TreeViewState treeViewState;
         Dictionary<string, ThreadInfo> threadAssignments;
-        ThreadInfo currentThread;
 
         enum Columns
         {
@@ -129,7 +128,7 @@ namespace MonoDevelop.Debugger
 
             if (!tree.Selection.GetSelected(out selected))
                 return;
-            var task = store.GetValue(selected, (int)Columns.Object) as ObjectValue;
+            var task = store.GetValue(selected, (int)Columns.Object) as RawValue;
             if (task!=null)
             {
                 DebuggingService.CallStackChanged -= OnStackChanged;
@@ -150,7 +149,7 @@ namespace MonoDevelop.Debugger
             }
         }
 
-        private void UpdateTask(ObjectValue activetask)
+        private void UpdateTask(RawValue activetask)
         {
             TreeIter iter;
             string currentThreadId=DebuggingService.ActiveThread.Id.ToString();
@@ -158,7 +157,7 @@ namespace MonoDevelop.Debugger
                 return;
 
             do {
-				var task = store.GetValue (iter, (int) Columns.Object) as ObjectValue;
+				var task = store.GetValue (iter, (int) Columns.Object) as RawValue;
                 if (task == null)
                 {
                     TreeIter child;
@@ -167,7 +166,7 @@ namespace MonoDevelop.Debugger
                     {
                         do
                         {
-                            task = store.GetValue(iter, (int)Columns.Object) as ObjectValue;
+                            task = store.GetValue(iter, (int)Columns.Object) as RawValue;
                             var weight = task == activetask ? Pango.Weight.Bold : Pango.Weight.Normal;
                             var icon = task == activetask ? Gtk.Stock.GoForward : null;
                             store.SetValue(iter, (int)Columns.Weight, (int)weight);
@@ -382,9 +381,9 @@ namespace MonoDevelop.Debugger
                     }
 
                     if (iter.Equals(TreeIter.Zero))
-                        store.AppendValues(icon, id, status, thread, parent, task, (int)weight);
+                        store.AppendValues(icon, id, status, thread, parent, rawtask, (int)weight);
                     else
-                        store.AppendValues(iter, icon, id, status, thread, parent, task, (int)weight);
+                        store.AppendValues(iter, icon, id, status, thread, parent, rawtask, (int)weight);
 
                 }
             }
@@ -396,7 +395,7 @@ namespace MonoDevelop.Debugger
         private void taskThreads()
         {
             threadAssignments.Clear();
-            currentThread= DebuggingService.ActiveThread;
+            
             var processes = DebuggingService.DebuggerSession.GetProcesses();
             foreach (var process in processes)
             {              
@@ -474,8 +473,8 @@ namespace MonoDevelop.Debugger
                                     do
                                     {
                                         taskid = store.GetValue(iter, (int)Columns.Id) as string;
-                                        var weight = currentThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
-                                        var icon = currentThread.Id == thread.Id ? Gtk.Stock.GoForward : null;
+                                        var weight = DebuggingService.ActiveThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
+                                        var icon = DebuggingService.ActiveThread.Id == thread.Id ? Gtk.Stock.GoForward : null;
                                         store.SetValue(iter, (int)Columns.Weight, (int)weight);
                                         store.SetValue(iter, (int)Columns.Icon, icon);
                                         if (taskid == id)
@@ -489,8 +488,8 @@ namespace MonoDevelop.Debugger
                             }
                             else
                             {
-                                var weight = currentThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
-                                var icon = currentThread.Id == thread.Id ? Gtk.Stock.GoForward : null;
+                                var weight = DebuggingService.ActiveThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
+                                var icon = DebuggingService.ActiveThread.Id == thread.Id ? Gtk.Stock.GoForward : null;
                                 if (taskid == id)
                                 {
                                     store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
@@ -502,6 +501,7 @@ namespace MonoDevelop.Debugger
 
 
                         } while (store.IterNext(ref iter));
+
                     }
 
                     if (!hasfound)
@@ -510,8 +510,8 @@ namespace MonoDevelop.Debugger
                         {
                             var raw = (RawValue)val.GetRawValue();
                             var taskid = raw.GetMemberValue("Id").ToString();
-                            string icon = thread.Id == currentThread.Id ? Gtk.Stock.GoForward : null;
-                            int weight = (int)(thread.Id == currentThread.Id ? Pango.Weight.Bold : Pango.Weight.Normal);
+                            string icon = thread.Id == DebuggingService.ActiveThread.Id ? Gtk.Stock.GoForward : null;
+                            int weight = (int)(thread.Id == DebuggingService.ActiveThread.Id ? Pango.Weight.Bold : Pango.Weight.Normal);
                             var statusraw = raw.GetMemberValue("Status");
                             long statusint = (long)statusraw;
                             string status = toStatus((int)statusint);
