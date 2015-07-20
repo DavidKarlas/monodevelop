@@ -488,15 +488,15 @@ namespace MonoDevelop.Debugger
                             }
                             else
                             {
-                                var weight = DebuggingService.ActiveThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
-                                var icon = DebuggingService.ActiveThread.Id == thread.Id ? Gtk.Stock.GoForward : null;
                                 if (taskid == id)
                                 {
-                                    store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
-                                    hasfound = true;
+                                  var weight = DebuggingService.ActiveThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
+                                  var icon = DebuggingService.ActiveThread.Id == thread.Id ? Gtk.Stock.GoForward : null;                    
+                                  store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
+                                  hasfound = true;                        
+                                  store.SetValue(iter, (int)Columns.Weight, (int)weight);
+                                  store.SetValue(iter, (int)Columns.Icon, icon);
                                 }
-                                store.SetValue(iter, (int)Columns.Weight, (int)weight);
-                                store.SetValue(iter, (int)Columns.Icon, icon);
                             }
 
 
