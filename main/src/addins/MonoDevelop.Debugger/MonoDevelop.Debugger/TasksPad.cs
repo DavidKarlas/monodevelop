@@ -408,7 +408,8 @@ namespace MonoDevelop.Debugger
                     {
                         if (thread.Backtrace.FrameCount > 0)
                         {
-                            
+
+                           
                                 var val = thread.Backtrace.GetFrame(0).GetExpressionValue("global::System.Threading.Tasks.Task.t_currentTask", ops);
                                 if (val.IsEvaluating)
                                     waitThreads(val, thread);
@@ -416,6 +417,7 @@ namespace MonoDevelop.Debugger
                                 {
                                     getThreads(val, thread);
                                 }
+                            
                         }
                         
                     }catch(Exception ex)
@@ -493,6 +495,11 @@ namespace MonoDevelop.Debugger
                                   var weight = DebuggingService.ActiveThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
                                   var icon = DebuggingService.ActiveThread.Id == thread.Id ? Gtk.Stock.GoForward : null;                    
                                   store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
+                                    string status=store.GetValue(iter,(int)Columns.Status) as string;
+                                  if ( status== "Running" && isBlocking(thread))
+                                  {
+                                      store.SetValue(iter, (int)Columns.Status, "Running(Blocked)");
+                                  }
                                   hasfound = true;                        
                                   store.SetValue(iter, (int)Columns.Weight, (int)weight);
                                   store.SetValue(iter, (int)Columns.Icon, icon);
@@ -515,6 +522,11 @@ namespace MonoDevelop.Debugger
                             var statusraw = raw.GetMemberValue("Status");
                             long statusint = (long)statusraw;
                             string status = toStatus((int)statusint);
+                            if (status == "Running" && isBlocking(thread))
+                            {
+                                status = "Running(Blocked)";
+                            }
+
                             string parent = "";
                             try
                             {
@@ -535,6 +547,15 @@ namespace MonoDevelop.Debugger
 
 
                 }
+        }
+
+        private bool isBlocking(ThreadInfo info)
+        {
+           bool blocking=false;
+           blocking = blocking || info.Location.Contains("System.Threading.Monitor.Enter");
+           blocking = blocking || info.Location.Contains("System.Threading.Monitor.Monitor_wait");
+           blocking = blocking || info.Location.Contains("System.Threading.Tasks.Task.Wait");
+            return blocking;
         }
 
         public string Id
