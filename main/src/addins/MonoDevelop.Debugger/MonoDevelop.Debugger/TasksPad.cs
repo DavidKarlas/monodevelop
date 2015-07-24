@@ -21,9 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-
 using Gtk;
-
 using System;
 using MonoDevelop.Core;
 using MonoDevelop.Ide.Gui;
@@ -122,6 +120,7 @@ namespace MonoDevelop.Debugger
             DebuggingService.StoppedEvent += OnDebuggerStopped;
         }
 
+        //switch Task
         private void tree_RowActivated(object o, RowActivatedArgs args)
         {
             TreeIter selected;
@@ -407,17 +406,14 @@ namespace MonoDevelop.Debugger
                     try
                     {
                         if (thread.Backtrace.FrameCount > 0)
-                        {
-
-                           
+                        {                  
                                 var val = thread.Backtrace.GetFrame(0).GetExpressionValue("global::System.Threading.Tasks.Task.t_currentTask", ops);
                                 if (val.IsEvaluating)
                                     waitThreads(val, thread);
                                 else
                                 {
                                     getThreads(val, thread);
-                                }
-                            
+                                }   
                         }
                         
                     }catch(Exception ex)
@@ -508,7 +504,6 @@ namespace MonoDevelop.Debugger
 
 
                         } while (store.IterNext(ref iter));
-
                     }
 
                     if (!hasfound)
@@ -544,8 +539,6 @@ namespace MonoDevelop.Debugger
                         {
                         }
                     }
-
-
                 }
         }
 
@@ -555,6 +548,11 @@ namespace MonoDevelop.Debugger
            blocking = blocking || info.Location.Contains("System.Threading.Monitor.Enter");
            blocking = blocking || info.Location.Contains("System.Threading.Monitor.Monitor_wait");
            blocking = blocking || info.Location.Contains("System.Threading.Tasks.Task.Wait");
+           blocking = blocking || info.Location.Contains("System.Threading.ManualResetEventSlim.Wait");
+           blocking = blocking || info.Location.Contains("System.Threading.Tasks.Task.InternalWait");
+           blocking = blocking || info.Location.Contains("System.Threading.Thread.Yield");
+           blocking = blocking || info.Location.Contains("System.Threading.Tasks.Task.SpinWait");
+           blocking = blocking || info.Location.Contains("System.Threading.Thread.Sleep");
             return blocking;
         }
 
@@ -587,54 +585,7 @@ namespace MonoDevelop.Debugger
             UpdateDisplay();
         }
     }
-    static class EvalHelper
-    {
-        public static ObjectValue Sync(this ObjectValue val)
-        {
-            if (!val.IsEvaluating)
-                return val;
-
-            object locker = new object();
-            EventHandler h = delegate
-            {
-                lock (locker)
-                {
-                    Monitor.PulseAll(locker);
-                }
-            };
-
-            val.ValueChanged += h;
-
-            lock (locker)
-            {
-                while (val.IsEvaluating)
-                {
-                    if (!Monitor.Wait(locker, 4000))
-                        throw new Exception("Timeout while waiting for value evaluation");
-                }
-            }
-
-            val.ValueChanged -= h;
-            return val;
-        }
-
-        public static ObjectValue GetChildSync(this ObjectValue val, string name, EvaluationOptions ops)
-        {
-            var result = val.GetChild(name, ops);
-
-            return result != null ? result.Sync() : null;
-        }
-
-        public static ObjectValue[] GetAllChildrenSync(this ObjectValue val)
-        {
-            var children = val.GetAllChildren();
-            foreach (var child in children)
-            {
-                child.Sync();
-            }
-            return children;
-        }
-    }
+    
 }
 
 
