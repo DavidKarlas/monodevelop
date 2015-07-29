@@ -54,14 +54,15 @@ namespace MonoDevelop.Debugger
             ThreadAssignment,
             Parent,
             Object,
-            Weight
+            Weight,
+            Task
         }
 
         public TasksPad()
         {
             this.ShadowType = ShadowType.None;
 
-            store = new TreeStore(typeof(string), typeof(string), typeof(string), typeof(string), typeof(string),typeof(object),typeof(int));
+            store = new TreeStore(typeof(string), typeof(string), typeof(string), typeof(string), typeof(string),typeof(object),typeof(int),typeof(string));
             tree = new PadTreeView(store);
             tree.RulesHint = true;
             tree.HeadersVisible = true;
@@ -72,7 +73,6 @@ namespace MonoDevelop.Debugger
             col.PackStart(crp, false);
             col.AddAttribute(crp, "stock_id", (int)Columns.Icon);
             tree.AppendColumn(col);
-
 
             col = new TreeViewColumn();
             col.Title = GettextCatalog.GetString("Id");
@@ -104,6 +104,14 @@ namespace MonoDevelop.Debugger
             col.Resizable = true;
             col.PackStart(tree.TextRenderer, false);
             col.AddAttribute(tree.TextRenderer, "text", (int)Columns.Parent);
+            col.AddAttribute(tree.TextRenderer, "weight", (int)Columns.Weight);
+            tree.AppendColumn(col);
+
+            col = new TreeViewColumn();
+            col.Title = GettextCatalog.GetString("Task");
+            col.Resizable = true;
+            col.PackStart(tree.TextRenderer, false);
+            col.AddAttribute(tree.TextRenderer, "text", (int)Columns.Task);
             col.AddAttribute(tree.TextRenderer, "weight", (int)Columns.Weight);
             tree.AppendColumn(col);
 
@@ -276,7 +284,7 @@ namespace MonoDevelop.Debugger
                 {
                     var raw = (RawValue)scheduler.GetRawValue();
                     var id = raw.GetMemberValue("Id");
-                    TreeIter iter = store.AppendValues(null, id.ToString(), "", "", scheduler, (int)Pango.Weight.Normal);
+                    TreeIter iter = store.AppendValues(null, id.ToString(), "", "", scheduler, (int)Pango.Weight.Normal,"");
                     AppendTasks(iter, scheduler);
 
                 }
@@ -379,10 +387,20 @@ namespace MonoDevelop.Debugger
                     {
                     }
 
+                    string taskmethod = "";
+                    try
+                    {
+                       taskmethod = (string)rawtask.GetMemberValue("DebuggerDisplayMethodDescription");
+                       
+                    }
+                    catch(Exception ex)
+                    {
+                    }
+
                     if (iter.Equals(TreeIter.Zero))
-                        store.AppendValues(icon, id, status, thread, parent, rawtask, (int)weight);
+                        store.AppendValues(icon, id, status, thread, parent, rawtask, (int)weight,taskmethod);
                     else
-                        store.AppendValues(iter, icon, id, status, thread, parent, rawtask, (int)weight);
+                        store.AppendValues(iter, icon, id, status, thread, parent, rawtask, (int)weight,taskmethod);
 
                 }
             }
@@ -394,7 +412,6 @@ namespace MonoDevelop.Debugger
         private void taskThreads()
         {
             threadAssignments.Clear();
-            
             var processes = DebuggingService.DebuggerSession.GetProcesses();
             foreach (var process in processes)
             {              
@@ -532,7 +549,16 @@ namespace MonoDevelop.Debugger
                             {
                             }
 
-                            store.AppendValues(icon, taskid, status, thread.Id.ToString(), parent, raw, (int)weight);
+                            string taskmethod = "";
+                            try
+                            {
+                                taskmethod = (string)raw.GetMemberValue("DebuggerDisplayMethodDescription");
+                            }
+                            catch (Exception ex)
+                            {
+                            }
+
+                            store.AppendValues(icon, taskid, status, thread.Id.ToString(), parent, raw, (int)weight,taskmethod);
                         }
                         //no task on the thread
                         catch (Exception ex)
