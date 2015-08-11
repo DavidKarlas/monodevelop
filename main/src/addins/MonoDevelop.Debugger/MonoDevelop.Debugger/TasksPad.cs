@@ -56,8 +56,7 @@ namespace MonoDevelop.Debugger
             Weight,
             Task
         }
-       
-       
+#if advancedTasksDebug      
         static TasksPad()
         {
            DebuggingService.DebugSessionStarted += DebuggingService_DebugSessionStarted;         
@@ -92,6 +91,7 @@ namespace MonoDevelop.Debugger
             }
 
         }
+#endif
         public TasksPad()
         {
             this.ShadowType = ShadowType.None;
@@ -293,10 +293,12 @@ namespace MonoDevelop.Debugger
                 var frame = DebuggingService.CurrentFrame;
                 var ops = GetEvaluationOptions ();
                 var tasksval = frame.GetExpressionValue("System.Threading.Tasks.Task.GetActiveTasks()", ops);
+ #if advancedTasksDebug   
                 if (tasksval.IsEvaluating) 
                   WaitAsyncDebug(tasksval);
                 else
                     GetAsyncDebug(tasksval);
+#endif
                 //get Tasks from schedulers
                 var val=frame.GetExpressionValue("System.Threading.Tasks.TaskScheduler.GetTaskSchedulersForDebugger()",ops);
                 if (val.IsEvaluating) 
@@ -313,6 +315,7 @@ namespace MonoDevelop.Debugger
             }
 
         }
+#if advancedTasksDebug   
         private void WaitAsyncDebug(ObjectValue val)
         {
             GLib.Timeout.Add(100, () =>
@@ -363,7 +366,7 @@ namespace MonoDevelop.Debugger
                 store.AppendValues(icon, id, status, thread, parent, rawtask, (int)weight, taskmethod);
             }
         }
-
+#endif
         private void GetSchedulers(ObjectValue val)
         {
             var array = val.GetAllChildren();
