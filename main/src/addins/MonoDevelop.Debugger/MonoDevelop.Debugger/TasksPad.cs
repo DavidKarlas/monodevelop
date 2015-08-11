@@ -30,7 +30,6 @@ using Mono.Debugging.Client;
 using MonoDevelop.Ide.Gui.Components;
 using MonoDevelop.Ide;
 using System.Threading.Tasks;
-using System.Reflection;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -491,10 +490,13 @@ namespace MonoDevelop.Debugger
                     }
 
                     //only add the task, if it's not added by async debug api
-                    bool hasfound = false;                   
+                    TreeIter iter2;
+                    bool hasfound = false;
+                    if (store.GetIterFirst(out iter2))
+                    {
                         do
                         {
-                            var taskid = store.GetValue(iter, (int)Columns.Id) as string;
+                            var taskid = store.GetValue(iter2, (int)Columns.Id) as string;
                             if (taskid == "")
                             {
                                 TreeIter child;
@@ -502,7 +504,7 @@ namespace MonoDevelop.Debugger
                                 {
                                     do
                                     {
-                                        taskid = store.GetValue(iter, (int)Columns.Id) as string;
+                                        taskid = store.GetValue(child, (int)Columns.Id) as string;
                                         if (taskid == id)
                                         {
                                             hasfound = true;
@@ -515,15 +517,15 @@ namespace MonoDevelop.Debugger
                             {
                                 if (taskid == id)
                                 {
-                                   
+
                                     hasfound = true;
                                 }
                             }
 
 
-                        } while (store.IterNext(ref iter));
+                        } while (store.IterNext(ref iter2));
 
-
+                    }
 
                         if (!hasfound)
                         {
