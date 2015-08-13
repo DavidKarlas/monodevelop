@@ -43,6 +43,7 @@ namespace MonoDevelop.Debugger
         bool isUpdating;
         IPadWindow window;
         TreeViewState treeViewState;
+        //"Cache" of the Task-Thread assignment
         Dictionary<string, ThreadInfo> threadAssignments;
 
         enum Columns
@@ -69,6 +70,7 @@ namespace MonoDevelop.Debugger
 
         static void setAsyncDebugging(object sender, TargetEventArgs e)
         {
+            //It is enough to set once Task.s_asyncDebuggingEnabled
             DebuggingService.DebuggerSession.TargetThreadStarted -= setAsyncDebugging;
             var ops = GetEvaluationOptions();
             try
@@ -80,22 +82,20 @@ namespace MonoDevelop.Debugger
                     {
                         var frame = i.Backtrace.GetFrame(0);
                         var val = frame.GetExpressionValue("global::System.Threading.Tasks.Task.s_asyncDebuggingEnabled = true;", ops);
-                        var result = frame.GetExpressionValue("global::System.Threading.Tasks.Task.s_asyncDebuggingEnabled", ops);
                     }
-                }
-                
+                }      
             }
              //can't set Async debugging
             catch(Exception ex)
             {
+              LoggingService.LogInternalError(ex);
             }
-
         }
 #endif
         public TasksPad()
         {
+            //set visuals of the Pad
             this.ShadowType = ShadowType.None;
-
             store = new TreeStore(typeof(string), typeof(string), typeof(string), typeof(string), typeof(string),typeof(object),typeof(int),typeof(string));
             tree = new PadTreeView(store);
             tree.RulesHint = true;
@@ -175,17 +175,21 @@ namespace MonoDevelop.Debugger
                 return;
             var task = store.GetValue(selected, (int)Columns.Object) as RawValue;
             if (task!=null)
-            {
+            {               
                 DebuggingService.CallStackChanged -= OnStackChanged;
                 try
                 {
                     string id=store.GetValue(selected, (int)Columns.Id) as string;
                     var selectedThread = threadAssignments[id];
-                    if (selectedThread != null)
-                    {
+                    if (selectedThread != null && DebuggingService.ActiveThread != selectedThread)
+                    {               
                         DebuggingService.ActiveThread = selectedThread;
-                        UpdateTask(task);
+                        SwitchTask(task);
                     }
+                }
+                catch (Exception ex) 
+                {
+                    LoggingService.LogInternalError(ex);
                 }
                 finally
                 {
@@ -193,20 +197,19 @@ namespace MonoDevelop.Debugger
                 }
             }
         }
-
-        private void UpdateTask(RawValue activetask)
+        //set the Pad to show the new active Task
+        private void SwitchTask(RawValue activetask)
         {
             TreeIter iter;
-            string currentThreadId=DebuggingService.ActiveThread.Id.ToString();
             if (!store.GetIterFirst(out iter))
                 return;
 
-            do {
+            do 
+            {
 				var task = store.GetValue (iter, (int) Columns.Object) as RawValue;
                 if (task == null)
                 {
                     TreeIter child;
-
                     if (store.IterChildren(out child))
                     {
                         do
@@ -226,50 +229,15 @@ namespace MonoDevelop.Debugger
                      store.SetValue(iter, (int)Columns.Weight, (int)weight);
                      store.SetValue(iter, (int)Columns.Icon, icon);
                 }
-
-
-            } while (store.IterNext(ref iter));
-
-            
-        }
-        public override void Dispose()
-        {
-            base.Dispose();
-            DebuggingService.CallStackChanged -= OnStackChanged;
-            DebuggingService.PausedEvent -= OnDebuggerPaused;
-            DebuggingService.ResumedEvent -= OnDebuggerResumed;
-            DebuggingService.StoppedEvent -= OnDebuggerStopped;
-        }
-
-        private void OnDebuggerStopped(object sender, EventArgs e)
-        {
-            UpdateDisplay();
-        }
-
-        private void OnDebuggerResumed(object sender, EventArgs e)
-        {
-            UpdateDisplay();
-        }
-
-        private void OnDebuggerPaused(object sender, EventArgs e)
-        {
-            UpdateDisplay();
-        }
-
-        private void OnStackChanged(object sender, EventArgs e)
-        {
-            UpdateDisplay();
-        }
+            } while (store.IterNext(ref iter));           
+        }        
 
         public void UpdateDisplay()
         {
-            if (window != null && window.ContentVisible)
+            if (window != null && window.ContentVisible && !isUpdating)
             {
-                if (!isUpdating)
-                {
-                    isUpdating = true;
-                    Update();
-                }
+                isUpdating = true;
+                Update();
             }
             else
                 needsUpdate = true;
@@ -282,7 +250,6 @@ namespace MonoDevelop.Debugger
             needsUpdate = false;
             treeViewState.Save();
             store.Clear();
-
             if (!DebuggingService.IsPaused)
             {
                 isUpdating = false;
@@ -293,7 +260,7 @@ namespace MonoDevelop.Debugger
                 var frame = DebuggingService.CurrentFrame;
                 var ops = GetEvaluationOptions ();
                 var tasksval = frame.GetExpressionValue("System.Threading.Tasks.Task.GetActiveTasks()", ops);
- #if advancedTasksDebug   
+#if advancedTasksDebug   
                 if (tasksval.IsEvaluating) 
                   WaitAsyncDebug(tasksval);
                 else
@@ -304,8 +271,7 @@ namespace MonoDevelop.Debugger
                 if (val.IsEvaluating) 
                   WaitSchedulers(val);
                 else{
-                    GetSchedulers(val);   
-        
+                    GetSchedulers(val);      
                 }
             }
             catch (Exception ex)
@@ -313,7 +279,6 @@ namespace MonoDevelop.Debugger
                 LoggingService.LogInternalError(ex);
                 isUpdating = false;
             }
-
         }
 #if advancedTasksDebug   
         private void WaitAsyncDebug(ObjectValue val)
@@ -328,6 +293,7 @@ namespace MonoDevelop.Debugger
                 return true;
             });
         }
+
         private void GetAsyncDebug(ObjectValue tasks)
         {
             var array = tasks.GetAllChildren();
@@ -367,6 +333,7 @@ namespace MonoDevelop.Debugger
             }
         }
 #endif
+
         private void GetSchedulers(ObjectValue val)
         {
             var array = val.GetAllChildren();
@@ -382,19 +349,18 @@ namespace MonoDevelop.Debugger
                     var id = raw.GetMemberValue("Id");
                     TreeIter iter = store.AppendValues(null, id.ToString(), "", "", scheduler, (int)Pango.Weight.Normal,"");
                     AppendTasks(iter, scheduler);
-
                 }
             }
              taskThreads();
              tree.ExpandAll();
              treeViewState.Load();
+             //updating visual is ending
              isUpdating = false;            
         }
 
-
         private void WaitSchedulers(ObjectValue val)
         {
-
+            //wait for result
             GLib.Timeout.Add(100, () =>
             {
                 if (!val.IsEvaluating)
@@ -404,50 +370,6 @@ namespace MonoDevelop.Debugger
                 }
                 return true;
             });
-        }
-        static EvaluationOptions GetEvaluationOptions()
-        {
-            var ops = EvaluationOptions.DefaultOptions;
-            ops.AllowMethodEvaluation = true;
-            ops.AllowToStringCalls = true;
-            ops.AllowTargetInvoke = true;
-            ops.EvaluationTimeout = 20000;
-            ops.EllipsizeStrings = false;
-            ops.MemberEvaluationTimeout = 20000;
-            return ops;
-        }
-
-        private string toStatus(int statusint)
-        {
-            string status = "";
-            switch (statusint)
-            {
-                case 7:
-                    status = "Canceled";
-                    break;
-                case 0:
-                    status = "Created";
-                    break;
-                case 6:
-                    status = "Faulted";
-                    break;
-                case 5:
-                    status = "RanToCompletion";
-                    break;
-                case 3:
-                    status = "Running";
-                    break;
-                case 1:
-                    status = "WaitingForActivation";
-                    break;
-                case 4:
-                    status = "WaitingForChildrenToComplete";
-                    break;
-                case 2:
-                    status = "WaitingToRun";
-                    break;
-            }
-            return status;
         }
 
         private void AppendTasks(TreeIter iter, ObjectValue scheduler)
@@ -460,7 +382,6 @@ namespace MonoDevelop.Debugger
                 var activeThreadId = DebuggingService.DebuggerSession.ActiveThread.Id.ToString();
                 foreach (var task in arraytasks)
                 {
-
                     var rawtask = (RawValue)task;
                     var id = rawtask.GetMemberValue("Id").ToString();
                     string thread = "";
@@ -485,14 +406,15 @@ namespace MonoDevelop.Debugger
                     string taskmethod = "";
                     try
                     {
-                       taskmethod = (string)rawtask.GetMemberValue("DebuggerDisplayMethodDescription");
-                       
+                       taskmethod = (string)rawtask.GetMemberValue("DebuggerDisplayMethodDescription");          
                     }
                     catch(Exception ex)
                     {
                     }
-
+                    bool hasfound = false;
+#if advancedTasksDebug  
                     //only add the task, if it's not added by async debug api
+                    //when advancedTaskDebug is false, it is unnecessary to check
                     TreeIter iter2;
                     bool hasfound = false;
                     if (store.GetIterFirst(out iter2))
@@ -524,26 +446,23 @@ namespace MonoDevelop.Debugger
                                     hasfound = true;
                                 }
                             }
-
-
                         } while (store.IterNext(ref iter2));
-
                     }
-
-                        if (!hasfound)
-                        {
-
-                            if (iter.Equals(TreeIter.Zero))
-                                store.AppendValues(icon, id, status, thread, parent, rawtask, (int)weight, taskmethod);
-                            else
-                                store.AppendValues(iter, icon, id, status, thread, parent, rawtask, (int)weight, taskmethod);
-                        }
+#endif
+                    if (!hasfound)
+                    {
+                        if (iter.Equals(TreeIter.Zero))
+                            store.AppendValues(icon, id, status, thread, parent, rawtask, (int)weight, taskmethod);
+                        else
+                            store.AppendValues(iter, icon, id, status, thread, parent, rawtask, (int)weight, taskmethod);
+                    }
                 }
             }
             catch(Exception ex)
             {
             }
         }
+
         //bring Tasks that runs on specific Thread
         private void taskThreads()
         {
@@ -554,7 +473,6 @@ namespace MonoDevelop.Debugger
                 var threads = process.GetThreads();             
                 foreach (var thread in threads)
                 {
-                    var frame = DebuggingService.CurrentFrame;
                     var ops = GetEvaluationOptions();
                     try
                     {
@@ -564,13 +482,12 @@ namespace MonoDevelop.Debugger
                                 if (val.IsEvaluating)
                                     waitThreads(val, thread);
                                 else
-                                {
-                                    getThreads(val, thread);
-                                }   
-                        }
-                        
-                    }catch(Exception ex)
+                                    getThreads(val, thread);   
+                        }    
+                    }
+                    catch(Exception ex)
                     {
+                        LoggingService.LogInternalError(ex);
                     }
                 }
             }
@@ -607,107 +524,143 @@ namespace MonoDevelop.Debugger
                 {
                     threadAssignments.Add(id, thread);
                 }
-                    bool hasfound = false;
-                   //add to pad the threadid
-                    TreeIter iter;
-                    if (store.GetIterFirst(out iter))
+                bool hasfound = false;
+                //add to pad the threadid
+                TreeIter iter;
+                if (store.GetIterFirst(out iter))
+                {
+                    do
                     {
-                        do
+                        var taskid = store.GetValue(iter, (int)Columns.Id) as string;
+                        if (taskid == "")
                         {
-                            var taskid = store.GetValue(iter, (int)Columns.Id) as string;
-                            if (taskid == "")
+                            TreeIter child;
+                            if (store.IterChildren(out child))
                             {
-                                TreeIter child;
-
-                                if (store.IterChildren(out child))
+                                do
                                 {
-                                    do
+                                    taskid = store.GetValue(iter, (int)Columns.Id) as string;
+                                    var weight = DebuggingService.ActiveThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
+                                    var icon = DebuggingService.ActiveThread.Id == thread.Id ? Gtk.Stock.GoForward : null;
+                                    store.SetValue(iter, (int)Columns.Weight, (int)weight);
+                                    store.SetValue(iter, (int)Columns.Icon, icon);
+                                    if (taskid == id)
                                     {
-                                        taskid = store.GetValue(iter, (int)Columns.Id) as string;
-                                        var weight = DebuggingService.ActiveThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
-                                        var icon = DebuggingService.ActiveThread.Id == thread.Id ? Gtk.Stock.GoForward : null;
-                                        store.SetValue(iter, (int)Columns.Weight, (int)weight);
-                                        store.SetValue(iter, (int)Columns.Icon, icon);
-                                        if (taskid == id)
-                                        {
-                                            store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
-                                            hasfound = true;
-                                        }
-
-                                    } while (store.IterNext(ref child));
-                                }
+                                        store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
+                                        hasfound = true;
+                                    }
+                                } while (store.IterNext(ref child));
                             }
-                            else
+                        }
+                        else
+                        {
+                            if (taskid == id)
                             {
-                                if (taskid == id)
-                                {
-                                  var weight = DebuggingService.ActiveThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
-                                  var icon = DebuggingService.ActiveThread.Id == thread.Id ? Gtk.Stock.GoForward : null;                    
-                                  store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
-                                    string status=store.GetValue(iter,(int)Columns.Status) as string;
-                                  if ( status== "Running" && isBlocking(thread))
-                                  {
-                                      store.SetValue(iter, (int)Columns.Status, "Running(Blocked)");
-                                  }
-                                  hasfound = true;                        
-                                  store.SetValue(iter, (int)Columns.Weight, (int)weight);
-                                  store.SetValue(iter, (int)Columns.Icon, icon);
-                                }
+                                var weight = DebuggingService.ActiveThread.Id == thread.Id ? Pango.Weight.Bold : Pango.Weight.Normal;
+                                var icon = DebuggingService.ActiveThread.Id == thread.Id ? Gtk.Stock.GoForward : null;                    
+                                store.SetValue(iter, (int)Columns.ThreadAssignment, thread.Id.ToString());
+                                string status=store.GetValue(iter,(int)Columns.Status) as string;
+                                if ( status== "Running" && isBlocking(thread))
+                                    store.SetValue(iter, (int)Columns.Status, "Running(Blocked)");
+                                hasfound = true;                        
+                                store.SetValue(iter, (int)Columns.Weight, (int)weight);
+                                store.SetValue(iter, (int)Columns.Icon, icon);
                             }
+                        }
+                    } while (store.IterNext(ref iter));
+                }
 
-
-                        } while (store.IterNext(ref iter));
-                    }
-
-                    if (!hasfound)
+                if (!hasfound)
+                {
+                    try
                     {
+                        var raw = (RawValue)val.GetRawValue();
+                        var taskid = raw.GetMemberValue("Id").ToString();
+                        string icon = thread.Id == DebuggingService.ActiveThread.Id ? Gtk.Stock.GoForward : null;
+                        int weight = (int)(thread.Id == DebuggingService.ActiveThread.Id ? Pango.Weight.Bold : Pango.Weight.Normal);
+                        var statusraw = raw.GetMemberValue("Status");
+                        long statusint = (long)statusraw;
+                        string status = toStatus((int)statusint);
+                        if (status == "Running" && isBlocking(thread))
+                            status = "Running(Blocked)";
+                        string parent = "";
                         try
                         {
-                            var raw = (RawValue)val.GetRawValue();
-                            var taskid = raw.GetMemberValue("Id").ToString();
-                            string icon = thread.Id == DebuggingService.ActiveThread.Id ? Gtk.Stock.GoForward : null;
-                            int weight = (int)(thread.Id == DebuggingService.ActiveThread.Id ? Pango.Weight.Bold : Pango.Weight.Normal);
-                            var statusraw = raw.GetMemberValue("Status");
-                            long statusint = (long)statusraw;
-                            string status = toStatus((int)statusint);
-                            if (status == "Running" && isBlocking(thread))
-                            {
-                                status = "Running(Blocked)";
-                            }
-
-                            string parent = "";
-                            try
-                            {
-                                var parentraw = (RawValue)raw.GetMemberValue("m_parent");
-                                parent = parentraw.GetMemberValue("Id").ToString();
-                            }
-                            catch (Exception ex)
-                            {
-                            }
-
-                            string taskmethod = "";
-                            try
-                            {
-                                taskmethod = (string)raw.GetMemberValue("DebuggerDisplayMethodDescription");
-                            }
-                            catch (Exception ex)
-                            {
-                            }
-
-                            store.AppendValues(icon, taskid, status, thread.Id.ToString(), parent, raw, (int)weight,taskmethod);
+                            var parentraw = (RawValue)raw.GetMemberValue("m_parent");
+                            parent = parentraw.GetMemberValue("Id").ToString();
                         }
-                        //no task on the thread
+                        //no parent
                         catch (Exception ex)
                         {
                         }
+
+                        string taskmethod = "";
+                        try
+                        {
+                            taskmethod = (string)raw.GetMemberValue("DebuggerDisplayMethodDescription");
+                        }
+                        catch (Exception ex)
+                        {
+                        }
+
+                        store.AppendValues(icon, taskid, status, thread.Id.ToString(), parent, raw, (int)weight,taskmethod);
+                    }
+                    //no task on the thread
+                    catch (Exception ex)
+                    {
                     }
                 }
+            }
         }
 
+        static EvaluationOptions GetEvaluationOptions()
+        {
+            var ops = EvaluationOptions.DefaultOptions;
+            ops.AllowMethodEvaluation = true;
+            ops.AllowToStringCalls = true;
+            ops.AllowTargetInvoke = true;
+            ops.EvaluationTimeout = 20000;
+            ops.EllipsizeStrings = false;
+            ops.MemberEvaluationTimeout = 20000;
+            return ops;
+        }
+
+        private string toStatus(int statusint)
+        {
+            string status = "";
+            switch (statusint)
+            {
+                case 0:
+                    status = "Created";
+                    break;
+                case 1:
+                    status = "WaitingForActivation";
+                    break;
+                case 2:
+                    status = "WaitingToRun";
+                    break;
+                case 3:
+                    status = "Running";
+                    break;
+                case 4:
+                    status = "WaitingForChildrenToComplete";
+                    break;
+                case 5:
+                    status = "RanToCompletion";
+                    break;
+                case 6:
+                    status = "Faulted";
+                    break;
+                case 7:
+                    status = "Canceled";
+                    break;
+            }
+            return status;
+        }
         private bool isBlocking(ThreadInfo info)
         {
            bool blocking=false;
-            //if thread's location contains one of them, it is likely blocked.
+           //if thread's location contains one of them, it is likely blocked.
            blocking = blocking || info.Location.Contains("System.Threading.Monitor.Enter");
            blocking = blocking || info.Location.Contains("System.Threading.Monitor.Monitor_wait");
            blocking = blocking || info.Location.Contains("System.Threading.Tasks.Task.Wait");
@@ -716,9 +669,35 @@ namespace MonoDevelop.Debugger
            blocking = blocking || info.Location.Contains("System.Threading.Thread.Yield");
            blocking = blocking || info.Location.Contains("System.Threading.Tasks.Task.SpinWait");
            blocking = blocking || info.Location.Contains("System.Threading.Thread.Sleep");
-            return blocking;
+           return blocking;
         }
 
+        public override void Dispose()
+        {
+            base.Dispose();
+            DebuggingService.CallStackChanged -= OnStackChanged;
+            DebuggingService.PausedEvent -= OnDebuggerPaused;
+            DebuggingService.ResumedEvent -= OnDebuggerResumed;
+            DebuggingService.StoppedEvent -= OnDebuggerStopped;
+        }
+        private void OnStackChanged(object sender, EventArgs e)
+        {
+            UpdateDisplay();
+        }
+        private void OnDebuggerStopped(object sender, EventArgs e)
+        {
+            UpdateDisplay();
+        }
+
+        private void OnDebuggerResumed(object sender, EventArgs e)
+        {
+            UpdateDisplay();
+        }
+
+        private void OnDebuggerPaused(object sender, EventArgs e)
+        {
+            UpdateDisplay();
+        }
         public string Id
         {
             get { return "MonoDevelop.Debugger.TasksPad"; }
@@ -747,8 +726,7 @@ namespace MonoDevelop.Debugger
         {
             UpdateDisplay();
         }
-    }
-    
+    }  
 }
 
 
