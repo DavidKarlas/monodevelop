@@ -76,7 +76,7 @@ namespace MonoDevelop.CodeIssues
 					return Enumerable.Empty<Result> ();
 				var localCompilation = CSharpCompilation.Create (
 					compilation.AssemblyName, 
-					new[] { model.SyntaxTree }, 
+					compilation.SyntaxTrees.ToArray (), 
 					compilation.References, 
 					(CSharpCompilationOptions)compilation.Options
 				);
@@ -96,9 +96,10 @@ namespace MonoDevelop.CodeIssues
 				}
 
 				return diagnosticList
-					.Where (d => !d.Id.StartsWith("CS", StringComparison.Ordinal))
+					.Where (d => !d.Id.StartsWith ("CS", StringComparison.Ordinal))
+					.Where (d => d.Location.SourceTree.FilePath == model.SyntaxTree.FilePath)
 					.Select (diagnostic => {
-						var res = new DiagnosticResult(diagnostic);
+						var res = new DiagnosticResult (diagnostic);
 						// var line = analysisDocument.Editor.GetLineByOffset (res.Region.Start);
 						// Console.WriteLine (diagnostic.Id + "/" + res.Region +"/" + analysisDocument.Editor.GetTextAt (line));
 						return res;
