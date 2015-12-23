@@ -303,36 +303,54 @@ namespace MonoDevelop.Ide
 			return 0;
 		}
 
-		static DateTime lastIdle;
 		static bool lockupCheckRunning = true;
 
-		[Conditional("DEBUG")]
 		static void StartLockupTracker ()
 		{
 			if (Platform.IsWindows)
 				return;
-			if (!string.Equals (Environment.GetEnvironmentVariable ("MD_LOCKUP_TRACKER"), "ON", StringComparison.OrdinalIgnoreCase))
+			var getThreadsMetod = typeof (Thread).GetMethod ("Mono_GetStackTraces", BindingFlags.NonPublic | BindingFlags.Static);
+			if (getThreadsMetod == null)
 				return;
-			GLib.Timeout.Add (2000, () => {
+			DateTime lastIdle;
+			const int timeoutMsMultiplier = 500;
+			GLib.Timeout.Add (3 * timeoutMsMultiplier, () => {
 				lastIdle = DateTime.Now;
 				return true;
 			});
-			lastIdle = DateTime.Now;
 			var lockupCheckThread = new Thread (delegate () {
+				lastIdle = DateTime.Now;
+				TextWriter logger = null;
 				while (lockupCheckRunning) {
-					const int waitTimeout = 5000;
-					const int maxResponseTime = 10000;
-					Thread.Sleep (waitTimeout); 
+					const int waitTimeout = 5 * timeoutMsMultiplier;
+					const int maxResponseTime = 10 * timeoutMsMultiplier;
+					Thread.Sleep (waitTimeout);
 					if ((DateTime.Now - lastIdle).TotalMilliseconds > maxResponseTime) {
-						var pid = Process.GetCurrentProcess ().Id;
-						Mono.Unix.Native.Syscall.kill (pid, Mono.Unix.Native.Signum.SIGQUIT); 
-						return;
+						var res = (Dictionary<Thread, StackTrace>)getThreadsMetod.Invoke (null, null);
+						if (logger == null) {
+							logger = LoggingService.CreateLogFile ("UIThreadLockupTracker");
+						}
+						logger.WriteLine ();
+						logger.WriteLine ("".PadLeft (100, '='));
+						logger.WriteLine ();
+						logger.WriteLine (DateTime.Now.ToString ("u"));
+						logger.WriteLine (string.Join (Environment.NewLine, res.Select (pair => {
+							var threadName = pair.Key.Name;
+							if (string.IsNullOrEmpty (threadName)) {
+								if (pair.Key.IsThreadPoolThread) {
+									threadName = "<Thread Pool>";
+								} else {
+									threadName = "<Thread>";
+								}
+							}
+							return threadName + "(" + pair.Key.ManagedThreadId + "):" + Environment.NewLine + pair.Value.ToString ();
+						})));
 					}
 				}
 			});
 			lockupCheckThread.Name = "Lockup check";
 			lockupCheckThread.IsBackground = true;
-			lockupCheckThread.Start (); 
+			lockupCheckThread.Start ();
 		}
 
 		void SetupTheme ()
