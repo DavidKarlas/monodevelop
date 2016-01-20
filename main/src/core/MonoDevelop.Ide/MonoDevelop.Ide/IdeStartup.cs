@@ -284,7 +284,9 @@ namespace MonoDevelop.Ide
 			Counters.Initialization.EndTiming ();
 				
 			AddinManager.AddExtensionNodeHandler("/MonoDevelop/Ide/InitCompleteHandlers", OnExtensionChanged);
+#if DEBUG
 			StartLockupTracker ();
+#endif
 			IdeApp.Run ();
 
 			IdeApp.Customizer.OnIdeShutdown ();
@@ -292,7 +294,9 @@ namespace MonoDevelop.Ide
 			// unloading services
 			if (null != socket_filename)
 				File.Delete (socket_filename);
+#if DEBUG
 			lockupCheckRunning = false;
+#endif
 			Runtime.Shutdown ();
 
 			IdeApp.Customizer.OnCoreShutdown ();
@@ -303,30 +307,32 @@ namespace MonoDevelop.Ide
 			return 0;
 		}
 
+#if DEBUG
 		static DateTime lastIdle;
 		static bool lockupCheckRunning = true;
+		static MethodInfo mono_GetStackTraces;
 
-		[Conditional("DEBUG")]
 		static void StartLockupTracker ()
 		{
+			const int MaxUIBlockTimeInMiliseconds = 3000;
 			if (Platform.IsWindows)
 				return;
-			if (!string.Equals (Environment.GetEnvironmentVariable ("MD_LOCKUP_TRACKER"), "ON", StringComparison.OrdinalIgnoreCase))
+			mono_GetStackTraces = typeof (Thread).GetMethod ("Mono_GetStackTraces", BindingFlags.NonPublic | BindingFlags.Static);
+			if (mono_GetStackTraces == null)
 				return;
-			GLib.Timeout.Add (2000, () => {
-				lastIdle = DateTime.Now;
+			GLib.Timeout.Add (MaxUIBlockTimeInMiliseconds / 2, () => {
+				lastIdle = DateTime.UtcNow;
 				return true;
 			});
-			lastIdle = DateTime.Now;
+			lastIdle = DateTime.MaxValue;
 			var lockupCheckThread = new Thread (delegate () {
 				while (lockupCheckRunning) {
-					const int waitTimeout = 5000;
-					const int maxResponseTime = 10000;
-					Thread.Sleep (waitTimeout); 
-					if ((DateTime.Now - lastIdle).TotalMilliseconds > maxResponseTime) {
-						var pid = Process.GetCurrentProcess ().Id;
-						Mono.Unix.Native.Syscall.kill (pid, Mono.Unix.Native.Signum.SIGQUIT); 
-						return;
+					Thread.Sleep (MaxUIBlockTimeInMiliseconds / 3);
+					if ((DateTime.UtcNow - lastIdle).TotalMilliseconds > MaxUIBlockTimeInMiliseconds) {
+						lastIdle = DateTime.UtcNow.AddSeconds (30);//put it far into future so we don't spam with same lockup every loop
+						//but not too far so we log it again if we deadlocked for 30sec so deadlock is at end of file
+						var threadsDump = ThreadsDump ();
+						LoggingService.LogWarning ("UI thread locked:" + Environment.NewLine + threadsDump);
 					}
 				}
 			});
@@ -334,6 +340,47 @@ namespace MonoDevelop.Ide
 			lockupCheckThread.IsBackground = true;
 			lockupCheckThread.Start (); 
 		}
+
+		static string ThreadsDump ()
+		{
+			var sb = new StringBuilder ();
+			var threadsWithStacktraces = (Dictionary<Thread, StackTrace>)mono_GetStackTraces.Invoke (null, null);
+			foreach (var t in threadsWithStacktraces.OrderBy (t => t.Key.ManagedThreadId)) {
+				sb.AppendLine ($"#{t.Key.ManagedThreadId} {t.Key.Name}");
+				foreach (var frame in t.Value.GetFrames ()) {
+					AppendFrame (frame, sb);
+				}
+			}
+			return sb.ToString ();
+		}
+
+		static void AppendFrame (StackFrame frame, StringBuilder sb)
+		{
+			var method = frame.GetMethod ();
+			if (method != null) {
+				sb.Append ("  at ");
+				if (method.DeclaringType != null) {
+					sb.Append (method.DeclaringType.FullName);
+					sb.Append (".");
+				}
+
+				sb.Append (method.Name);
+
+				sb.Append ("(");
+				sb.Append (string.Join (", ", method.GetParameters ().Select (p => (p.ParameterType?.Name ?? "<Unknown type>") + " " + p.Name)));
+				sb.Append (")");
+
+				var fileName = frame.GetFileName ();
+				if (fileName != null) {
+					sb.AppendLine ($" in {fileName}:line {frame.GetFileLineNumber ()}");
+				} else {
+					sb.AppendLine ();
+				}
+			} else {
+				sb.AppendLine ("<Unknown method>");
+			}
+		}
+#endif
 
 		void SetupTheme ()
 		{
