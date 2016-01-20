@@ -82,6 +82,8 @@ namespace MonoDevelop.Refactoring
 				throw new ArgumentNullException (nameof (document));
 			if (document.ParsedDocument == null)
 				return RefactoringSymbolInfo.Empty;
+			if (document.AnalysisDocument == null)
+				return RefactoringSymbolInfo.Empty;
 			var unit = await document.AnalysisDocument.GetSemanticModelAsync (cancellationToken).ConfigureAwait (false);
 			if (unit != null) {
 				var root = await unit.SyntaxTree.GetRootAsync (cancellationToken).ConfigureAwait (false);
