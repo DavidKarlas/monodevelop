@@ -38,6 +38,7 @@ using MonoDevelop.Refactoring;
 using MonoDevelop.Refactoring.Rename;
 using MonoDevelop.Ide.TypeSystem;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace MonoDevelop.CSharp.Refactoring
 {
@@ -82,7 +83,11 @@ namespace MonoDevelop.CSharp.Refactoring
 
 		internal async Task Run (TextEditor editor, DocumentContext ctx)
 		{
-			var info = RefactoringSymbolInfo.GetSymbolInfoAsync (ctx, editor.CaretOffset).Result;
+			var cts = new CancellationTokenSource ();
+			var getSymbolTask = RefactoringSymbolInfo.GetSymbolInfoAsync (ctx, editor.CaretOffset, cts.Token);
+			var message = GettextCatalog.GetString ("Waiting for rename operation to find all references...");
+			MessageService.SW = System.Diagnostics.Stopwatch.StartNew ();
+			var info = await MessageService.ExecuteTaskAndShowWaitDialog (getSymbolTask, message, cts);
 			var sym = info.DeclaredSymbol ?? info.Symbol;
 			if (!CanRename (sym))
 				return;
