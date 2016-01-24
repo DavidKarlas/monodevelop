@@ -156,6 +156,9 @@ namespace MonoDevelop.Components.MainToolbar
 					inResize = false;
 				}
 			};*/
+
+			timer = new System.Timers.Timer (200);
+			timer.Elapsed += Timer_Elapsed;
 		}
 
 		bool inResize = false;
@@ -250,34 +253,34 @@ namespace MonoDevelop.Components.MainToolbar
 				if (i >= maxItems || !result.IsValid)
 					return;
 				searchResults = searchResults.Insert (i, result);
-				Runtime.RunInMainThread (delegate {
-					parent.UpdateSearchCollectors ();
-				});
+
+				parent.UpdateSearchCollectors ();
 			}
 
 			#endregion
 		}
-		uint timeout;
+		System.Timers.Timer timer;
 
 		void UpdateSearchCollectors()
 		{
+			timer.Stop ();
+			timer.Start ();
+		}
+
+		void Timer_Elapsed (object sender, System.Timers.ElapsedEventArgs e)
+		{
 			RemoveTimeout ();
-			timeout = GLib.Timeout.Add (200, delegate {
+			Runtime.RunInMainThread (() => {
 				foreach (var col in collectors) {
 					ShowResult (col.Category, col.Results);
 				}
 				QueueResize ();
-				timeout = 0;
-				return false;
 			});
 		}
 
 		void RemoveTimeout ()
 		{
-			if (timeout == 0)
-				return;
-			GLib.Source.Remove (timeout);
-			timeout = 0;
+			timer.Stop ();
 		}
 		List<SearchResultCollector> collectors = new List<SearchResultCollector> ();
 		public void Update (SearchPopupSearchPattern pattern)
