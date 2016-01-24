@@ -314,7 +314,7 @@ namespace MonoDevelop.Ide
 
 		static void StartLockupTracker ()
 		{
-			const int MaxUIBlockTimeInMiliseconds = 3000;
+			const int MaxUIBlockTimeInMiliseconds = 1000;
 			if (Platform.IsWindows)
 				return;
 			mono_GetStackTraces = typeof (Thread).GetMethod ("Mono_GetStackTraces", BindingFlags.NonPublic | BindingFlags.Static);
