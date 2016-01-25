@@ -159,11 +159,6 @@ namespace MonoDevelop.Components.MainToolbar
 			}
 		}
 
-		public override Task<TooltipInformation> GetTooltipInformation (CancellationToken token)
-		{
-			return Task.FromResult<TooltipInformation> (null);
-		}
-
 		public override string Description {
 			get {
 				return file.Project != null
@@ -221,11 +216,6 @@ namespace MonoDevelop.Components.MainToolbar
 			get {
 				return ImageService.GetIcon ("md-command", IconSize.Menu);
 			}
-		}
-
-		public override Task<TooltipInformation> GetTooltipInformation (CancellationToken token)
-		{
-			return Task.FromResult<TooltipInformation> (null);
 		}
 
 		public override string Description {
