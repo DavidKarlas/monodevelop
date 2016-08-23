@@ -883,7 +883,7 @@ namespace MonoDevelop.Projects.MSBuild
 			}
 			throw new Exception ("Did not find MSBuild for runtime " + runtime.Id);
 		}
-		
+		static int ga;
 		internal static async Task<RemoteProjectBuilder> GetProjectBuilder (TargetRuntime runtime, string minToolsVersion, string file, string solutionFile, int customId, bool lockBuilder = false)
 		{
 			using (await buildersLock.EnterAsync ())
@@ -940,7 +940,10 @@ namespace MonoDevelop.Projects.MSBuild
 					try {
 						IBuildEngine engine;
 						if (!runLocal) {
-							p = runtime.ExecuteAssembly (pinfo);
+							pinfo.Arguments = $"--gc=sgen --profile=log:heapshot=ondemand,alloc,nocalls,maxframes=3,output=/Users/davidkarlas/Desktop/profiles/msbuild{Interlocked.Increment (ref ga)}.mlpd \"{pinfo.FileName}\" {pinfo.Arguments}";
+							pinfo.FileName = "/Library/Frameworks/Mono.framework/Versions/Current/bin/mono64";
+							//pinfo.FileName = "/opt9/mono/bin/mono";
+							p = Process.Start (pinfo);
 
 							// The builder app will write the build engine reference
 							// after reading the process id from the standard input
