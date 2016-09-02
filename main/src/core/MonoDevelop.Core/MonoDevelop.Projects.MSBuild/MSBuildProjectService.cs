@@ -941,8 +941,8 @@ namespace MonoDevelop.Projects.MSBuild
 						IBuildEngine engine;
 						if (!runLocal) {
 							pinfo.Arguments = $"--gc=sgen --profile=log:heapshot=ondemand,alloc,nocalls,maxframes=3,output=/Users/davidkarlas/Desktop/profiles/msbuild{Interlocked.Increment (ref ga)}.mlpd \"{pinfo.FileName}\" {pinfo.Arguments}";
-							//pinfo.FileName = "/Library/Frameworks/Mono.framework/Versions/Current/bin/mono64";
-							pinfo.FileName = "/opt9/mono/bin/mono";
+							pinfo.FileName = "/Library/Frameworks/Mono.framework/Versions/Current/bin/mono";
+							//pinfo.FileName = "/opt9/mono/bin/mono";
 							p = Process.Start (pinfo);
 
 							// The builder app will write the build engine reference
