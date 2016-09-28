@@ -54,7 +54,7 @@ namespace MonoDevelop.Components.MainToolbar
 		/// <summary>
 		/// Load configuration information for a solution
 		/// </summary>
-		public void Load (Solution sol)
+		public void Load (Solution sol, params Tuple<SolutionItem, SolutionItemRunConfiguration>[] projects)
 		{
 			currentSolutionConfigurations.Clear ();
 			currentTargetPartitions.Clear ();
@@ -62,9 +62,6 @@ namespace MonoDevelop.Components.MainToolbar
 
 			if (sol == null)
 				return;
-
-			var project = sol.StartupItem;
-			var runConfig = (sol.StartupConfiguration as SingleItemSolutionRunConfiguration)?.RunConfiguration;
 
 			// Create a set of configuration partitions. Each partition will contain configurations
 			// which are implicitly selected when selecting an execution target. For example, in
@@ -75,31 +72,30 @@ namespace MonoDevelop.Components.MainToolbar
 			//      targets: device
 
 			List<TargetPartition> partitions = new List<TargetPartition> ();
-			if (project != null) {
-				foreach (var conf in project.Configurations) {
-					var targets = project.GetExecutionTargets (conf.Selector, runConfig);
+			foreach (var project in projects) {
+				foreach (var conf in project.Item1.Configurations) {
+					var targets = project.Item1.GetExecutionTargets (conf.Selector, project.Item2);
 					if (!targets.Any ()) {
-						targets = new ExecutionTarget[] { dummyExecutionTarget };
+						targets = new ExecutionTarget [] { dummyExecutionTarget };
 					}
-					var parts = partitions.Where (p => targets.Any (t => p.Targets.Contains (t))).ToArray();
+					var parts = partitions.Where (p => targets.Any (t => p.Targets.Contains (t))).ToArray ();
 					if (parts.Length == 0) {
 						// Create a new partition for this configuration
 						var p = new TargetPartition ();
+						p.Project = project.Item1;
 						p.Configurations.Add (conf.Id);
 						p.Targets.UnionWith (targets);
 						partitions.Add (p);
-					}
-					else if (parts.Length == 1) {
+					} else if (parts.Length == 1) {
 						// Register the configuration into an existing partition
-						parts[0].Configurations.Add (conf.Id);
-						parts[0].Targets.UnionWith (targets);
-					}
-					else {
+						parts [0].Configurations.Add (conf.Id);
+						parts [0].Targets.UnionWith (targets);
+					} else {
 						// The partitions have to be merged into a single one
-						for (int n=1; n<parts.Length; n++) {
-							parts[0].Configurations.UnionWith (parts[n].Configurations);
-							parts[0].Targets.UnionWith (parts[n].Targets);
-							partitions.Remove (parts[n]);
+						for (int n = 1; n < parts.Length; n++) {
+							parts [0].Configurations.UnionWith (parts [n].Configurations);
+							parts [0].Targets.UnionWith (parts [n].Targets);
+							partitions.Remove (parts [n]);
 						}
 					}
 				}
@@ -107,7 +103,7 @@ namespace MonoDevelop.Components.MainToolbar
 				// The startup project configuration partitions are used to create solution configuration partitions
 
 				foreach (var solConf in sol.Configurations) {
-					var pconf = solConf.GetEntryForItem (project);
+					var pconf = solConf.GetEntryForItem (project.Item1);
 					if (pconf != null && pconf.Build) {
 						var part = partitions.FirstOrDefault (p => p.Configurations.Contains (pconf.ItemConfiguration));
 						if (part != null) {
@@ -223,7 +219,7 @@ namespace MonoDevelop.Components.MainToolbar
 		/// <param name='resolvedTarget'>
 		/// If the provided target is not valid for the provided configuration, this returns a valid target
 		/// </param>
-		public void ResolveConfiguration (string currentConfig, ExecutionTarget currentTarget, out string resolvedConfig, out ExecutionTarget resolvedTarget)
+		public void ResolveConfiguration (string currentConfig, SolutionItem project, ExecutionTarget currentTarget, out string resolvedConfig, out ExecutionTarget resolvedTarget)
 		{
 			resolvedConfig = null;
 			resolvedTarget = currentTarget;
@@ -231,7 +227,7 @@ namespace MonoDevelop.Components.MainToolbar
 			if (!reducedConfigurations.Contains (currentConfig)) {
 				// The selected configuration is not reduced, just use it as full config name
 				resolvedConfig = currentConfig;
-				var part = currentTargetPartitions.FirstOrDefault (p => p.SolutionConfigurations.Contains (currentConfig));
+				var part = currentTargetPartitions.FirstOrDefault (p => p.Project == project && p.SolutionConfigurations.Contains (currentConfig));
 				if (part != null) {
 					if (!ExecutionTargetsContains (part.Targets, resolvedTarget))
 						resolvedTarget = FirstRealExecutionTarget (part.Targets);
@@ -240,7 +236,7 @@ namespace MonoDevelop.Components.MainToolbar
 				}
 			} else {
 				// Reduced configuration. Find the partition and guess the implicit project configuration
-				var part = currentTargetPartitions.FirstOrDefault (p => ExecutionTargetsContains (p.Targets, currentTarget ?? dummyExecutionTarget));
+				var part = currentTargetPartitions.FirstOrDefault (p => p.Project == project && ExecutionTargetsContains (p.Targets, currentTarget ?? dummyExecutionTarget));
 				if (part != null) {
 					resolvedConfig = part.SolutionConfigurations.FirstOrDefault (c => {
 						string name, plat;
@@ -249,9 +245,9 @@ namespace MonoDevelop.Components.MainToolbar
 					});
 				}
 				if (resolvedConfig == null) {
-					part = currentTargetPartitions.FirstOrDefault (p => p.ReducedConfigurations.Contains (currentConfig));
+					part = currentTargetPartitions.FirstOrDefault (p => p.Project == project && p.ReducedConfigurations.Contains (currentConfig));
 					if (part == null)
-						part = currentTargetPartitions.FirstOrDefault (p => p.SolutionConfigurations.Contains (currentConfig));
+						part = currentTargetPartitions.FirstOrDefault (p => p.Project == project && p.SolutionConfigurations.Contains (currentConfig));
 					if (part != null) {
 						resolvedTarget = FirstRealExecutionTarget (part.Targets);
 						resolvedConfig = part.SolutionConfigurations.FirstOrDefault (c => {
@@ -274,21 +270,21 @@ namespace MonoDevelop.Components.MainToolbar
 		/// <summary>
 		/// Gets the targets which are valid for a configuration
 		/// </summary>
-		public IEnumerable<ExecutionTarget> GetTargetsForConfiguration (string fullConfigurationId, bool ignorePlatform)
+		public IEnumerable<ExecutionTarget> GetTargetsForConfiguration (string fullConfigurationId, bool ignorePlatform, SolutionItem project)
 		{
-			string conf,plat;
+			string conf, plat;
 			ItemConfiguration.ParseConfigurationId (fullConfigurationId, out conf, out plat);
 
 			if (ignorePlatform && reducedConfigurations.Contains (conf)) {
 				// Reduced configuration. Show all targets since they will be used to guess the implicit platform
-				return currentTargetPartitions.Where (p => p.ReducedConfigurations.Contains (conf)).SelectMany (p => p.Targets);
+				return currentTargetPartitions.Where (p => p.ReducedConfigurations.Contains (conf) && p.Project == project).SelectMany (p => p.Targets);
 			} else {
 				// Show targets for the configuration
-				var part = currentTargetPartitions.FirstOrDefault (p => p.SolutionConfigurations.Contains (fullConfigurationId));
+				var part = currentTargetPartitions.FirstOrDefault (p => p.SolutionConfigurations.Contains (fullConfigurationId) && p.Project == project);
 				if (part != null)
 					return part.Targets;
 				else
-					return new ExecutionTarget[0];
+					return new ExecutionTarget [0];
 			}
 		}
 
@@ -355,6 +351,8 @@ namespace MonoDevelop.Components.MainToolbar
 			/// Configurations (without platform) that have been reduced
 			/// </summary>
 			public HashSet<string> ReducedConfigurations = new HashSet<string> ();
+
+			public SolutionItem Project;
 		}
 	}
 }

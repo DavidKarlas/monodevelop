@@ -354,9 +354,6 @@ namespace WindowsPlatform.MainToolbar
 			source.Clear ();
 
 			foreach (var item in model) {
-				if (item.HasParent)
-					continue;
-
 				if (item.IsSeparator)
 					source.Add (new Separator { UseLayoutRounding = true, });
 				else {
