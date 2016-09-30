@@ -82,7 +82,6 @@ namespace MonoDevelop.Components.MainToolbar
 					if (parts.Length == 0) {
 						// Create a new partition for this configuration
 						var p = new TargetPartition ();
-						p.Project = project.Item1;
 						p.Configurations.Add (conf.Id);
 						p.Targets.UnionWith (targets);
 						partitions.Add (p);
@@ -219,7 +218,7 @@ namespace MonoDevelop.Components.MainToolbar
 		/// <param name='resolvedTarget'>
 		/// If the provided target is not valid for the provided configuration, this returns a valid target
 		/// </param>
-		public void ResolveConfiguration (string currentConfig, SolutionItem project, ExecutionTarget currentTarget, out string resolvedConfig, out ExecutionTarget resolvedTarget)
+		public void ResolveConfiguration (string currentConfig, ExecutionTarget currentTarget, out string resolvedConfig, out ExecutionTarget resolvedTarget)
 		{
 			resolvedConfig = null;
 			resolvedTarget = currentTarget;
@@ -227,7 +226,7 @@ namespace MonoDevelop.Components.MainToolbar
 			if (!reducedConfigurations.Contains (currentConfig)) {
 				// The selected configuration is not reduced, just use it as full config name
 				resolvedConfig = currentConfig;
-				var part = currentTargetPartitions.FirstOrDefault (p => p.Project == project && p.SolutionConfigurations.Contains (currentConfig));
+				var part = currentTargetPartitions.FirstOrDefault (p => p.SolutionConfigurations.Contains (currentConfig));
 				if (part != null) {
 					if (!ExecutionTargetsContains (part.Targets, resolvedTarget))
 						resolvedTarget = FirstRealExecutionTarget (part.Targets);
@@ -236,7 +235,7 @@ namespace MonoDevelop.Components.MainToolbar
 				}
 			} else {
 				// Reduced configuration. Find the partition and guess the implicit project configuration
-				var part = currentTargetPartitions.FirstOrDefault (p => p.Project == project && ExecutionTargetsContains (p.Targets, currentTarget ?? dummyExecutionTarget));
+				var part = currentTargetPartitions.FirstOrDefault (p => ExecutionTargetsContains (p.Targets, currentTarget ?? dummyExecutionTarget));
 				if (part != null) {
 					resolvedConfig = part.SolutionConfigurations.FirstOrDefault (c => {
 						string name, plat;
@@ -245,9 +244,9 @@ namespace MonoDevelop.Components.MainToolbar
 					});
 				}
 				if (resolvedConfig == null) {
-					part = currentTargetPartitions.FirstOrDefault (p => p.Project == project && p.ReducedConfigurations.Contains (currentConfig));
+					part = currentTargetPartitions.FirstOrDefault (p => p.ReducedConfigurations.Contains (currentConfig));
 					if (part == null)
-						part = currentTargetPartitions.FirstOrDefault (p => p.Project == project && p.SolutionConfigurations.Contains (currentConfig));
+						part = currentTargetPartitions.FirstOrDefault (p => p.SolutionConfigurations.Contains (currentConfig));
 					if (part != null) {
 						resolvedTarget = FirstRealExecutionTarget (part.Targets);
 						resolvedConfig = part.SolutionConfigurations.FirstOrDefault (c => {
@@ -277,10 +276,10 @@ namespace MonoDevelop.Components.MainToolbar
 
 			if (ignorePlatform && reducedConfigurations.Contains (conf)) {
 				// Reduced configuration. Show all targets since they will be used to guess the implicit platform
-				return currentTargetPartitions.Where (p => p.ReducedConfigurations.Contains (conf) && p.Project == project).SelectMany (p => p.Targets);
+				return currentTargetPartitions.Where (p => p.ReducedConfigurations.Contains (conf)).SelectMany (p => p.Targets);
 			} else {
 				// Show targets for the configuration
-				var part = currentTargetPartitions.FirstOrDefault (p => p.SolutionConfigurations.Contains (fullConfigurationId) && p.Project == project);
+				var part = currentTargetPartitions.FirstOrDefault (p => p.SolutionConfigurations.Contains (fullConfigurationId));
 				if (part != null)
 					return part.Targets;
 				else
@@ -351,8 +350,6 @@ namespace MonoDevelop.Components.MainToolbar
 			/// Configurations (without platform) that have been reduced
 			/// </summary>
 			public HashSet<string> ReducedConfigurations = new HashSet<string> ();
-
-			public SolutionItem Project;
 		}
 	}
 }

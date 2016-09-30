@@ -334,10 +334,9 @@ namespace MonoDevelop.Components.MainToolbar
 			string fullConfig;
 
 			var runtime = (RuntimeModel)ToolbarView.ActiveRuntime;
-			configurationMerger.ResolveConfiguration (config.OriginalId, runtime?.Project, runtime?.ExecutionTarget, out fullConfig, out newTarget);
+			configurationMerger.ResolveConfiguration (config.OriginalId, runtime?.ExecutionTarget, out fullConfig, out newTarget);
 			settingGlobalConfig = true;
 			try {
-				IdeApp.Workspace.ActiveExecutionTarget = newTarget;
 				IdeApp.Workspace.ActiveConfigurationId = fullConfig;
 			} finally {
 				settingGlobalConfig = false;
@@ -440,7 +439,7 @@ namespace MonoDevelop.Components.MainToolbar
 		{
 			var runtimes = AllRuntimes (ToolbarView.RuntimeModel).Cast<RuntimeModel> ().ToList ();
 			string lastRuntimeForProject = project.UserProperties.GetValue<string> ("PreferredExecutionTarget", defaultValue: null);
-			var activeTarget = IdeApp.Workspace.ActiveExecutionTarget;
+            var activeTarget = (ToolbarView.ActiveRuntime as RuntimeModel)?.Project == project ? ((RuntimeModel)ToolbarView.ActiveRuntime).ExecutionTarget : null;
 			var multiProjectExecutionTarget = activeTarget as MultiProjectExecutionTarget;
 			if (multiProjectExecutionTarget != null) {
 				activeTarget = multiProjectExecutionTarget.GetTarget (project);
@@ -475,7 +474,8 @@ namespace MonoDevelop.Components.MainToolbar
 					defaultRuntime = item;
 				}
 			}
-			project.UserProperties.SetValue ("PreferredExecutionTarget", defaultRuntime.ExecutionTarget.Id);
+            if (defaultRuntime?.ExecutionTarget?.Id != null)
+                project.UserProperties.SetValue("PreferredExecutionTarget", defaultRuntime.ExecutionTarget.Id);
 			return defaultRuntime;
 		}
 
