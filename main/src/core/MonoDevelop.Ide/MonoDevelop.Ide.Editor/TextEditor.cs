@@ -918,6 +918,12 @@ namespace MonoDevelop.Ide.Editor
 		{
 			if (isDisposed)
 				return;
+			if (projections != null) {
+				foreach (var projection in projections) {
+					projection.Dispose ();
+				}
+				projections = null;
+			}
 			isDisposed = true;
 			DetachExtensionChain ();
 			FileNameChanged -= TextEditor_FileNameChanged;
@@ -1343,7 +1349,7 @@ namespace MonoDevelop.Ide.Editor
 				throw new ArgumentNullException (nameof (ctx));
 			if (this.projections != null) {
 				foreach (var projection in this.projections) {
-					projection.Dettach ();
+					projection.Dispose ();
 				}
 			}
 			this.projections = projections;

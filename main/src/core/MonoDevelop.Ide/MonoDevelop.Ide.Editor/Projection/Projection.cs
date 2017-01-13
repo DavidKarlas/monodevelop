@@ -33,7 +33,7 @@ using System.Collections.Generic;
 
 namespace MonoDevelop.Ide.Editor.Projection
 {
-	public sealed class Projection
+	public sealed class Projection : IDisposable
 	{
 		public ITextDocument Document { get; private set; }
 
@@ -104,9 +104,13 @@ namespace MonoDevelop.Ide.Editor.Projection
 			}
 		}
 
-		internal void Dettach ()
+		public void Dispose ()
 		{
 			attachedEditor.TextChanging -= HandleTextChanging;
+			if (projectedEditor != null) {
+				projectedEditor.Dispose ();
+				projectedEditor = null;
+			}
 		}
 
 		internal void Attach (TextEditor textEditor)
