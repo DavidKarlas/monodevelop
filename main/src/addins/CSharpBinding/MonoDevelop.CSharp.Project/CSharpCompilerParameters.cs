@@ -135,8 +135,8 @@ namespace MonoDevelop.CSharp.Project
 			);
 
 			var options = new CSharpCompilationOptions (
-				OutputKind.ConsoleApplication,
-				mainTypeName: project.MainClass,
+				project.CompileTarget == CompileTarget.Library ? OutputKind.DynamicallyLinkedLibrary : OutputKind.ConsoleApplication,
+				mainTypeName: string.IsNullOrWhiteSpace(project.MainClass) ? null : project.MainClass,
 				scriptClassName: "Script",
 				optimizationLevel: Optimize ? OptimizationLevel.Release : OptimizationLevel.Debug,
 				checkOverflow: GenerateOverflowChecks,
@@ -150,7 +150,8 @@ namespace MonoDevelop.CSharp.Project
 				concurrentBuild: true,
 				metadataReferenceResolver: metadataReferenceResolver,
 				assemblyIdentityComparer: DesktopAssemblyIdentityComparer.Default,
-				strongNameProvider: new DesktopStrongNameProvider ()
+				strongNameProvider: new DesktopStrongNameProvider (),
+				publicSign: ParentConfiguration.SignAssembly
 			);
 
 			return options;

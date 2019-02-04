@@ -43,6 +43,8 @@ using CustomCommand = MonoDevelop.Projects.CustomCommand;
 using System.Linq;
 using MonoDevelop.Ide.Projects;
 using MonoDevelop.Projects.Policies;
+using MonoDevelop.Ide.TypeSystem;
+using System.Diagnostics;
 
 namespace MonoDevelop.Ide.Commands
 {
@@ -223,9 +225,24 @@ namespace MonoDevelop.Ide.Commands
 				info.Enabled = false;
 		}
 
-		protected override void Run ()
+		protected override async void Run ()
 		{
-			IdeApp.ProjectOperations.Build (IdeApp.ProjectOperations.CurrentSelectedBuildTarget);
+			var proj = IdeApp.ProjectOperations.CurrentSelectedBuildTarget as DotNetProject;
+			var roslynProj = TypeSystemService.GetProject (proj);
+			var sw = Stopwatch.StartNew ();
+			var compilation = await roslynProj.GetCompilationAsync ();
+			Console.WriteLine (sw.ElapsedMilliseconds);
+			var conf = (DotNetProjectConfiguration)proj.GetConfiguration (IdeApp.Workspace.ActiveConfiguration);
+			//var ba = conf.CompilationParameters.CreateCompilationOptions ();
+
+			//compilation = compilation.WithOptions (ba);
+			Console.WriteLine (sw.ElapsedMilliseconds);
+			using (var dllFile = new FileStream (conf.OutputAssembly, FileMode.Create)) {
+				var result = compilation.Emit (dllFile);
+				Console.WriteLine (sw.ElapsedMilliseconds);
+				Console.WriteLine (result.Success);
+			}
+			//IdeApp.ProjectOperations.Build (IdeApp.ProjectOperations.CurrentSelectedBuildTarget);
 		}
 	}
 
